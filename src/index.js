@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { BrowserRouter } from 'react-router-dom';
+// import { BrowserRouter } from 'react-router-dom';
+import { HashRouter } from 'react-router-dom';
 import App from './components/App/App.js';
 import Auth from './components/Auth/Auth.js';
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
@@ -76,7 +77,7 @@ function Root() {
   }
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       {user ? (
         <DataProvider>
           <App
@@ -88,7 +89,7 @@ function Root() {
       ) : (
         <Auth onAuthSuccess={() => {}} initialFeedback={authError} />
       )}
-    </BrowserRouter>
+    </HashRouter>
   );
 }
 
