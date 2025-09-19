@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/inventario-local/static/css/main.43f77c5c.css",
+    "main.js": "/inventario-local/static/js/main.dfad385b.js",
+    "index.html": "/inventario-local/index.html",
+    "main.43f77c5c.css.map": "/inventario-local/static/css/main.43f77c5c.css.map",
+    "main.dfad385b.js.map": "/inventario-local/static/js/main.dfad385b.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.43f77c5c.css",
+    "static/js/main.dfad385b.js"
+  ]
+}
