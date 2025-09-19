@@ -1,0 +1,254 @@
+/* Tarjeta del modal con el mismo lenguaje visual de Inventory */
+.inv-modal {
+  position: relative;
+  background: linear-gradient(180deg, var(--inv-card-grad-top), var(--inv-card-grad-bottom)), var(--inv-card-bg);
+  color: var(--inv-card-text);
+  border: 1px solid var(--inv-card-border);
+  border-radius: calc(var(--pico-border-radius, 0.5rem) + 2px);
+  box-shadow: var(--inv-shadow);
+  max-height: 95vh;      /* no excede 95% del alto de la ventana */
+  display: flex;         /* permite que el contenido interno sea scrollable */
+  flex-direction: column;
+  overflow: hidden;      /* evita doble scroll; el scroll vive en el form */
+}
+
+/* Barra de acento izquierda */
+.inv-modal::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 6px;
+  border-top-left-radius: inherit;
+  border-bottom-left-radius: inherit;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--pico-primary), transparent 10%),
+    color-mix(in srgb, var(--pico-primary), transparent 60%)
+  );
+  opacity: 0.95;
+  pointer-events: none;
+}
+
+.inv-modal header {
+  position: static;      /* resetea sticky */
+  top: auto;
+  z-index: auto;
+  background: transparent;
+  border-bottom: 1px solid var(--inv-divider);
+  padding-bottom: calc(var(--pico-spacing) * 0.6);
+  margin-bottom: calc(var(--pico-spacing) * 0.6);
+}
+
+/* El formulario hace scroll interno si el contenido crece */
+.inv-modal form {
+  flex: 1 1 auto;
+  min-height: 0;         /* necesario para que overflow funcione en flex container */
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.inv-modal footer {
+  border-top: 1px solid var(--inv-divider);
+  padding-top: calc(var(--pico-spacing) * 0.6);
+}
+
+/* Inputs coherentes con el tema */
+.inv-modal input,
+.inv-modal select,
+.inv-modal textarea {
+  background: var(--inv-card-bg);
+  color: var(--inv-card-text);
+  border-color: var(--inv-card-border);
+}
+
+.inv-modal input:focus-visible,
+.inv-modal select:focus-visible,
+.inv-modal textarea:focus-visible {
+  outline: none;
+  box-shadow: var(--inv-ring);
+  border-color: var(--pico-primary);
+}
+
+/* Sección de subida de imágenes (maquetada) */
+.file-upload {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.file-upload input[type="file"] {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  border: 0;
+}
+
+.upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--inv-card-text);
+  border: 1px dashed color-mix(in srgb, var(--pico-primary), var(--inv-card-border) 65%);
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+
+.upload-btn:hover {
+  background: var(--pico-primary);
+  color: var(--pico-primary-inverse);
+  border-color: var(--pico-primary);
+}
+
+.upload-hint {
+  color: var(--inv-card-muted);
+  font-size: 0.85rem;
+}
+
+/* Zebra suave para filas de cantidades por inventario */
+.inventory-qty-list > div {
+  background: var(--inv-row-bg);
+  border: 1px solid var(--inv-row-divider);
+  border-radius: var(--pico-border-radius, 0.5rem);
+  padding: calc(var(--pico-spacing) * 0.75);
+}
+
+.inventory-qty-list > div:nth-child(even) {
+  background: var(--inv-row-alt-bg);
+}
+
+/* Botón de quitar inventario consistente */
+.inventory-qty-list .contrast {
+  border-radius: 999px;
+}
+
+/* Backdrop a pantalla completa (no hereda el 95% del modal) */
+:root,
+[data-theme="light"] {
+  --inv-backdrop: rgba(17, 24, 39, 0.45); /* tono oscuro sutil en tema claro */
+}
+[data-theme="dark"] {
+  --inv-backdrop: rgba(0, 0, 0, 0.6); /* un poco más denso en oscuro */
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --inv-backdrop: rgba(0, 0, 0, 0.6);
+  }
+}
+
+dialog::backdrop {
+  position: fixed;
+  inset: 0;           /* cubre todo el viewport */
+  margin: 0;
+  padding: 0;
+  background: var(--inv-backdrop);
+  -webkit-backdrop-filter: blur(6px) saturate(1.05);
+  backdrop-filter: blur(6px) saturate(1.05);
+}
+
+/* Evita doble overlay (hacemos transparente el ::backdrop nativo) */
+dialog::backdrop {
+  background: transparent !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Overlay global 100% viewport cuando haya cualquier dialog abierto */
+html:has(dialog[open])::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1000; /* por debajo del dialog (1002) */
+  pointer-events: none;
+  background: var(--inv-backdrop, rgba(17, 24, 39, 0.45));
+  -webkit-backdrop-filter: blur(6px) saturate(1.05);
+  backdrop-filter: blur(6px) saturate(1.05);
+}
+
+/* El modal conserva su margen y 95% de alto */
+dialog[open] {
+  z-index: 1002;
+  margin: 2.5vh auto;
+}
+
+.inv-modal {
+  max-height: 95vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* El contenido interno scrollea */
+.inv-modal form {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Grid de previsualización de imágenes */
+.image-previews {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.image-previews .thumb {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border: 1px solid var(--inv-row-divider, var(--inv-card-border));
+  border-radius: var(--pico-border-radius, 0.5rem);
+  background: color-mix(in srgb, var(--inv-card-bg), transparent 0%);
+  padding: 0.5rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  transition: box-shadow .2s ease, transform .2s ease, border-color .2s ease;
+}
+
+.image-previews .thumb:hover {
+  box-shadow: var(--inv-shadow-hover, 0 8px 24px rgba(0,0,0,.12));
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--pico-primary), var(--inv-card-border) 65%);
+}
+
+.image-previews .thumb img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: calc(var(--pico-border-radius, 0.5rem) - 2px);
+  background: var(--inv-row-alt-bg, #f3f4f6);
+}
+
+.image-previews .thumb figcaption {
+  font-size: 0.75rem;
+  color: var(--inv-card-muted, #6b7280);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.delete-btn{
+  background:#dc2626;
+  border:1px solid #dc2626;
+  color:#fff;
+  font-weight:600;
+  transition:background .18s;
+}
+.delete-btn:hover:not([disabled]){
+  background:#b91c1c;
+  border-color:#b91c1c;
+}
+.delete-btn:focus{
+  outline:0;
+  box-shadow:0 0 0 2px rgba(220 38 38 / .5);
+}
+.delete-btn[disabled]{
+  opacity:.65;
+  cursor:not-allowed;
+}

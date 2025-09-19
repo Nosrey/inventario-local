@@ -1,0 +1,782 @@
+/* Variables (fallbacks si no hay design system) */
+:root {
+  --lps-bg: var(--pico-background, #ffffff);
+  --lps-surface: var(--pico-card-background, #ffffff);
+  --lps-border: var(--pico-muted-border-color, #d3d6db);
+  --lps-border-strong: #b8bcc2;
+  --lps-text: var(--pico-color, #1d232b);
+  --lps-text-dim: var(--pico-secondary-color, #5d6470);
+  --lps-primary: var(--pico-primary, #2563eb);
+  --lps-danger: #dc2626;
+  --lps-radius: 14px;
+  --lps-focus-ring: 0 0 0 2px color-mix(in srgb, var(--lps-primary) 50%, transparent);
+  --lps-row-height: 74px;
+  --lps-transition: .15s cubic-bezier(.4,.2,.2,1);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --lps-bg: var(--pico-background, #121418);
+    --lps-surface: var(--pico-card-background, #1c1f23);
+    --lps-border: var(--pico-muted-border-color, #2e343b);
+    --lps-border-strong: #41484f;
+    --lps-text: var(--pico-color, #f5f7fa);
+    --lps-text-dim: var(--pico-secondary-color, #9aa2ad);
+    --lps-primary: var(--pico-primary, #3b82f6);
+    color-scheme: dark;
+  }
+}
+
+/* Soporte para data-theme oscuro explícito */
+:root[data-theme='dark'],
+[data-theme='dark'] {
+  --lps-bg: var(--pico-background, #121418);
+  --lps-surface: var(--pico-card-background, #1c1f23);
+  --lps-border: var(--pico-muted-border-color, #2e343b);
+  --lps-border-strong: #41484f;
+  --lps-text: var(--pico-color, #f5f7fa);
+  --lps-text-dim: var(--pico-secondary-color, #9aa2ad);
+  --lps-primary: var(--pico-primary, #3b82f6);
+  color-scheme: dark;
+}
+
+/* Coloca esto cerca del inicio (o en tu global). Añadimos capa para toasts */
+:root {
+  --layer-toast: 2000;
+}
+
+/* Backdrop */
+.lps-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,17,23,.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: clamp(.5rem, 2vh, 1.4rem);
+  z-index: var(--layer-modal, 1500);
+  overflow-y: auto;
+}
+
+/* Modal */
+.lps-modal {
+  background: var(--lps-bg);
+  color: var(--lps-text);
+  width: min(900px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 18px;
+  border: 1px solid var(--lps-border);
+  box-shadow: 0 10px 42px -10px rgba(0,0,0,.4);
+  overflow: hidden;
+  animation: lps-pop .18s ease;
+  /* asegúrate de que exista o añade position relative para posicionar toast */
+  position: relative;
+}
+
+@media (max-width: 720px) {
+  .lps-modal {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
+}
+
+/* Header */
+.lps-header {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .9rem 1.1rem .75rem;
+  border-bottom: 1px solid var(--lps-border);
+  background: linear-gradient(180deg, var(--lps-bg), var(--lps-bg));
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+.lps-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0;
+  flex: 1;
+}
+
+.lps-close {
+  background: none;
+  border: 0;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 10px;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--lps-text);
+  transition: background var(--lps-transition);
+}
+.lps-close:hover,
+.lps-close:focus-visible {
+  background: rgba(120,130,150,.12);
+  outline: none;
+}
+
+/* Filtros */
+.lps-filters {
+  display: flex;
+  gap: .9rem;
+  flex-wrap: wrap;
+  padding: .85rem 1.1rem .65rem;
+  background: linear-gradient(180deg, var(--lps-surface), var(--lps-surface));
+  border-bottom: 1px solid var(--lps-border);
+}
+
+.lps-field {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  min-width: 200px;
+  flex: 0 1 auto;
+}
+.lps-field.grow {
+  flex: 1 1 260px;
+  min-width: 160px;
+}
+
+.lps-label {
+  font-size: .65rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--lps-text-dim);
+}
+
+.lps-select,
+.lps-input {
+  border: 1px solid var(--lps-border);
+  background: var(--lps-surface);
+  color: var(--lps-text);
+  padding: .55rem .65rem;
+  border-radius: 10px;
+  font-size: .88rem;
+  line-height: 1.15;
+  transition: border-color var(--lps-transition), background var(--lps-transition);
+  outline: none;
+}
+
+.lps-select:focus,
+.lps-input:focus {
+  border-color: var(--lps-primary);
+  box-shadow: var(--lps-focus-ring);
+}
+
+/* Lista */
+.lps-list-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.lps-hint {
+  text-align: center;
+  font-size: .85rem;
+  opacity: .7;
+  margin: 2rem 1rem;
+}
+
+.lps-list {
+  list-style: none;
+  margin: 0;
+  padding: .5rem 0 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.lps-list::-webkit-scrollbar {
+  width: 10px;
+}
+.lps-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.lps-list::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--lps-border), var(--lps-border-strong));
+  border-radius: 20px;
+  border: 2px solid var(--lps-bg);
+}
+.lps-list::-webkit-scrollbar-thumb:hover {
+  background: var(--lps-border-strong);
+}
+
+/* Virtualización: scroll container separado (ya era .lps-list). */
+.lps-list.lps-virt-scroll {
+  position: relative;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  will-change: scroll-position;
+  contain: content;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+/* Suaviza scroll en algunos navegadores */
+.lps-list.lps-virt-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+.lps-list.lps-virt-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.lps-list.lps-virt-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--lps-border), var(--lps-border-strong));
+  border-radius: 20px;
+  border: 2px solid var(--lps-bg);
+}
+.lps-list.lps-virt-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--lps-border-strong);
+}
+
+/* Fila de producto */
+.lps-row {
+  --pad-x: 1rem;
+  display: flex;
+  align-items: stretch;
+  gap: .9rem;
+  padding: .55rem var(--pad-x);
+  min-height: var(--lps-row-height);
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--lps-transition), border-color var(--lps-transition), transform var(--lps-transition);
+  border-top: 1px solid transparent;
+  border-bottom: 1px solid transparent;
+}
+
+.lps-row:first-child {
+  margin-top: .25rem;
+}
+
+.lps-row::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--lps-surface);
+  border: 1px solid var(--lps-border);
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.08);
+  transition: border-color var(--lps-transition), box-shadow var(--lps-transition), background var(--lps-transition);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.lps-row:hover::before {
+  border-color: var(--lps-primary);
+  box-shadow: 0 3px 10px -3px rgba(0,0,0,.25);
+}
+
+.lps-row.focused::before {
+  border-color: var(--lps-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--lps-primary) 40%, transparent);
+}
+
+.lps-row:active {
+  transform: translateY(1px);
+}
+
+/* Estado fuera de stock */
+.lps-row.out::before {
+  border-color: var(--lps-danger);
+  background: linear-gradient(90deg, rgba(220,38,38,.05), rgba(220,38,38,.02));
+  box-shadow: 0 1px 3px -1px rgba(220,38,38,.35);
+}
+.lps-row.out:hover::before {
+  border-color: var(--lps-danger);
+  box-shadow: 0 1px 3px -1px rgba(220,38,38,.4);
+  transform: none;
+}
+
+/* Thumbnail */
+.lps-thumb {
+  width: 54px;
+  min-width: 54px;
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  background: var(--lps-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  isolation: isolate;
+  border: 1px solid var(--lps-border);
+}
+
+.lps-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.lps-thumb-ph {
+  font-size: 1.2rem;
+  font-weight: 600;
+  opacity: .35;
+}
+
+.lps-row.out .lps-thumb {
+  border-color: var(--lps-danger);
+  background: rgba(220,38,38,.12);
+}
+
+/* Contenido principal */
+.lps-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: .35rem;
+  justify-content: center;
+}
+
+.lps-line1,
+.lps-line2 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .75rem;
+  min-width: 0;
+}
+
+.lps-name {
+  font-size: .92rem;
+  font-weight: 600;
+  line-height: 1.15;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lps-price {
+  font-size: .9rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.lps-id,
+.lps-stock {
+  font-size: .65rem;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--lps-text-dim);
+  white-space: nowrap;
+}
+
+/* Forzar color legible en filas normales */
+.lps-row .lps-name,
+.lps-row .lps-price,
+.lps-row .lps-id,
+.lps-row .lps-stock {
+  color: var(--lps-text);
+}
+
+/* Mantener override rojo para fuera de stock (ya existe, pero lo dejamos después para prioridad) */
+.lps-row.out .lps-name,
+.lps-row.out .lps-price,
+.lps-row.out .lps-id,
+.lps-row.out .lps-stock {
+  color: var(--lps-danger);
+}
+
+/* Opcional: si quieres que los metadatos (ID/Stock) sean atenuados cuando sí hay stock */
+.lps-row:not(.out) .lps-id,
+.lps-row:not(.out) .lps-stock {
+  color: var(--lps-text-dim);
+}
+
+/* Footer */
+.lps-footer {
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(180deg, var(--lps-bg), var(--lps-bg));
+  border-top: 1px solid var(--lps-border);
+  padding: .75rem 1.1rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: .6rem;
+  z-index: 2;
+}
+
+.lps-btn {
+  border: 1px solid var(--lps-border);
+  background: var(--lps-surface);
+  color: var(--lps-text);
+  border-radius: 10px;
+  padding: .55rem 1.1rem;
+  font-size: .85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--lps-transition), border-color var(--lps-transition);
+}
+.lps-btn:hover,
+.lps-btn:focus-visible {
+  background: color-mix(in srgb, var(--lps-primary) 12%, transparent);
+  border-color: var(--lps-primary);
+  outline: none;
+}
+
+/* Mobile ajustes */
+@media (max-width: 640px) {
+  :root {
+    --lps-row-height: 68px;
+  }
+  .lps-row {
+    --pad-x: .85rem;
+    gap: .75rem;
+    padding: .5rem var(--pad-x);
+  }
+  .lps-thumb {
+    width: 50px;
+    min-width: 50px;
+    border-radius: 10px;
+  }
+  .lps-name {
+    font-size: .88rem;
+  }
+  .lps-price {
+    font-size: .82rem;
+  }
+  .lps-id,
+  .lps-stock {
+    font-size: .58rem;
+  }
+
+  .lps-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* FIX: evitar que el campo de búsqueda crezca y deje espacio vacío */
+  .lps-field.grow {
+    flex: 0 0 auto;
+    min-width: 0;
+    width: 100%;
+    height: auto;
+  }
+
+  .lps-field {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .lps-footer {
+    justify-content: center;
+  }
+}
+
+/* Animación */
+@keyframes lps-pop {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Asegurar que el pseudo no tape el contenido */
+.lps-row::before {
+  z-index: 0;
+}
+.lps-row > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Fix visibilidad: neutraliza estilos globales (gradient text / transparent) */
+.lps-row:not(.out) .lps-name,
+.lps-row:not(.out) .lps-price {
+  color: var(--lps-text, #f5f7fa) !important;
+  -webkit-text-fill-color: currentColor !important;
+  background: none !important;
+  background-clip: initial !important;
+  -webkit-background-clip: initial !important;
+  mix-blend-mode: normal;
+}
+
+.lps-row:not(.out) .lps-id,
+.lps-row:not(.out) .lps-stock {
+  color: var(--lps-text-dim, #9aa2ad) !important;
+  -webkit-text-fill-color: currentColor !important;
+  background: none !important;
+  background-clip: initial !important;
+  -webkit-background-clip: initial !important;
+  mix-blend-mode: normal;
+}
+
+/* Mejora contraste para fuera de stock */
+.lps-row.out .lps-name,
+.lps-row.out .lps-price,
+.lps-row.out .lps-id,
+.lps-row.out .lps-stock {
+  color: #ef4444 !important; /* tono un poco más claro que #dc2626 para contraste sobre #1c1f23 */
+  -webkit-text-fill-color: currentColor !important;
+}
+
+/* Ejemplos de selectores de contenedor de notificaciones.
+   Sustituye/añade el que uses realmente */
+.toast-container,
+.notification-container,
+.app-toast-container {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: var(--layer-toast, 2000);
+  pointer-events: none; /* opcional si tus toasts no necesitan interacción */
+}
+
+/* Si tus toasts individuales requieren clic, usa pointer-events:auto en ellos */
+.toast-container > * ,
+.notification-container > * ,
+.app-toast-container > * {
+  pointer-events: auto;
+}
+
+/* Toast dentro del modal */
+.lps-toast {
+  position: absolute;
+  top: .55rem;
+  right: .6rem;
+  max-width: 320px;
+  padding: .55rem .85rem;
+  border-radius: 10px;
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  line-height: 1.25;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  z-index: 20;
+  background: linear-gradient(135deg,#541818,#601d1d 60%,#4a1414);
+  border: 1px solid #892e2e;
+  color: #ffd9d9;
+  box-shadow: 0 4px 18px -6px rgba(0,0,0,.55);
+  animation: lps-toast-in .25s ease;
+  pointer-events: none;
+}
+
+.lps-toast.error::before {
+  content: "✕";
+  font-size: .85rem;
+  filter: drop-shadow(0 0 2px rgba(0,0,0,.35));
+}
+
+/* === Unificación de estilos de toast (éxito / error misma visual) === */
+.app-toast {
+  --toast-accent: var(--lps-primary);
+  position: absolute; /* variante dentro del modal */
+  top: .65rem;
+  right: .7rem;
+  max-width: 340px;
+  padding: .65rem .9rem .65rem 1rem;
+  border-radius: 12px;
+  font-size: .78rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: .015em;
+  display: flex;
+  align-items: flex-start;
+  gap: .55rem;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--lps-surface) 92%, #000 8%), color-mix(in srgb, var(--lps-surface) 85%, #000 15%));
+  border: 1px solid color-mix(in srgb, var(--toast-accent), transparent 60%);
+  box-shadow:
+    0 4px 18px -6px rgba(0,0,0,.55),
+    0 0 0 2px color-mix(in srgb, var(--toast-accent) 40%, transparent);
+  color: var(--lps-text);
+  animation: app-toast-in .28s cubic-bezier(.4,.2,.2,1);
+  pointer-events: none;
+  z-index: 20;
+}
+
+.app-toast::before {
+  content: attr(data-icon);
+  font-size: .85rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 4px;
+  background: var(--toast-accent);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 0 0 1px color-mix(in srgb, #000 35%, transparent);
+}
+
+.app-toast.success { --toast-accent: #16a34a; } /* verde */
+.app-toast.error { --toast-accent: #dc2626; }   /* rojo */
+.app-toast.info { --toast-accent: #3b82f6; }
+
+@keyframes app-toast-in {
+  from { opacity: 0; transform: translateY(-6px) scale(.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Elimina estilos antiguos específicos (si ya no se necesitan) */
+.lps-toast,
+.lps-toast.error,
+.lps-toast.success { display: none !important; }
+
+/* Overlay cantidad */
+.lps-qty-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,.55));
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: clamp(.75rem, 2vh, 1.25rem);
+  z-index: 40;
+}
+
+.lps-qty-panel {
+  width: min(420px, 100%);
+  background: var(--lps-surface);
+  border: 1px solid var(--lps-border);
+  border-radius: 18px;
+  padding: 1.15rem 1.25rem 1.25rem;
+  box-shadow: 0 8px 34px -6px rgba(0,0,0,.55);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  animation: qty-pop .22s cubic-bezier(.4,.2,.2,1);
+}
+
+@keyframes qty-pop {
+  from { opacity: 0; transform: translateY(10px) scale(.965); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.lps-qty-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--lps-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lps-qty-stock {
+  margin: 0;
+  font-size: .72rem;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--lps-text-dim);
+}
+
+.lps-qty-control {
+  display: flex;
+  align-items: stretch;
+  gap: .65rem;
+  justify-content: center;
+}
+
+.lps-qty-btn {
+  width: 3.1rem;
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--lps-border);
+  background: color-mix(in srgb, var(--lps-surface), var(--lps-primary) 6%);
+  color: var(--lps-text);
+  font-size: 1.4rem;
+  font-weight: 600;
+  border-radius: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--lps-transition), border-color var(--lps-transition), transform .12s;
+}
+.lps-qty-btn:hover:not(:disabled),
+.lps-qty-btn:focus-visible:not(:disabled) {
+  border-color: var(--lps-primary);
+  background: color-mix(in srgb, var(--lps-surface), var(--lps-primary) 14%);
+  outline: none;
+}
+.lps-qty-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.lps-qty-btn:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.lps-qty-input {
+  width: 5.2rem;
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 600;
+  padding: .55rem .4rem;
+  border: 1px solid var(--lps-border);
+  border-radius: 14px;
+  background: var(--lps-bg);
+  color: var(--lps-text);
+  -moz-appearance: textfield;
+}
+.lps-qty-input:focus {
+  border-color: var(--lps-primary);
+  box-shadow: var(--lps-focus-ring);
+  outline: none;
+}
+.lps-qty-input::-webkit-outer-spin-button,
+.lps-qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.lps-qty-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: .65rem;
+  flex-wrap: wrap;
+}
+
+.lps-btn.primary {
+  background: color-mix(in srgb, var(--lps-primary) 92%, #000 8%);
+  color: #fff;
+  border-color: var(--lps-primary);
+}
+.lps-btn.primary:hover,
+.lps-btn.primary:focus-visible {
+  background: color-mix(in srgb, var(--lps-primary) 100%, #000 0%);
+}
+.lps-btn.secondary {
+  background: var(--lps-surface);
+}
+
+@media (max-width: 560px) {
+  .lps-qty-panel {
+    padding: 1rem 1rem 1.1rem;
+    border-radius: 16px;
+  }
+  .lps-qty-btn {
+    width: 2.8rem;
+  }
+  .lps-qty-input {
+    width: 4.6rem;
+  }
+  .lps-qty-actions {
+    justify-content: center;
+  }
+}
