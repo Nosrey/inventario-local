@@ -135,13 +135,13 @@ function AddProductModal({ isOpen, onClose, onAddProduct, onDeleteProduct, inven
     }
   }, [isOpen, productToEdit, inventories]);
 
-  // Cambios de cantidad: guarda EXACTO lo que escribe el usuario
-  const handleInventoryQtyChange = (inventoryId, value) => {
-    const q = toInt(value);
-    setInventoryQuantities(prev =>
-      prev.map(i => i.inventoryId === inventoryId ? { ...i, quantity: q } : i)
-    );
-  };
+  // // Cambios de cantidad: guarda EXACTO lo que escribe el usuario
+  // const handleInventoryQtyChange = (inventoryId, value) => {
+  //   const q = toInt(value);
+  //   setInventoryQuantities(prev =>
+  //     prev.map(i => i.inventoryId === inventoryId ? { ...i, quantity: q } : i)
+  //   );
+  // };
 
   // Al confirmar: envía cantidades exactas (sin restar 1, sin diferenciales)
   const handleSubmit = async (e) => {
@@ -411,7 +411,6 @@ function AddProductModal({ isOpen, onClose, onAddProduct, onDeleteProduct, inven
                         value={quantity}
                         onChange={(e) => handleQuantityChange(inventoryId, e.target.value)}
                         placeholder="Cantidad Inicial"
-                        required
                         min="0"
                       />
                       <button

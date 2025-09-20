@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-// Añade runTransaction para la operación atómica del contador
-import { doc, setDoc, writeBatch, collection, runTransaction, deleteDoc, deleteField } from 'firebase/firestore';
+import { doc, setDoc, writeBatch, runTransaction, deleteDoc, deleteField } from 'firebase/firestore';
 import { db } from '../../firebase.js';
 import { useData } from '../../context/DataProvider.jsx';
 import AddProductButton from '../AddProductButton/AddProductButton.js';
@@ -8,6 +7,8 @@ import AddProductModal from '../AddProductModal/AddProductModal.js';
 import ProductSearchBar from '../ProductSearchBar/ProductSearchBar.js';
 import { FixedSizeList as List } from 'react-window';
 import './Inventory.css';
+// --- NUEVO: reutilizamos estilos y layout de ProductSearchModal para mejor legibilidad ---
+import '../Cashier/ProductSearchModal/ProductSearchModal.css';
 
 // Eliminamos listeners locales: usamos el contexto global
 function Inventory({ user }) {
@@ -17,7 +18,19 @@ function Inventory({ user }) {
   const [selectedInventoryId, setSelectedInventoryId] = useState('total');
   const [productToEdit, setProductToEdit] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState('list');
+  const [viewMode, setViewMode] = useState('grid'); // ← defecto ahora: cuadrícula
+
+  // Responsive row height for react-window list (desktop: compact 45px, mobile: taller ~140px)
+  const [listRowHeight, setListRowHeight] = useState(45);
+  useEffect(() => {
+    const update = () => {
+      const w = typeof window !== 'undefined' ? window.innerWidth : 1024;
+      setListRowHeight(w <= 720 ? 140 : 45); // mobile = 140px for stacked card layout
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
 
   const handleSetViewMode = async (mode) => {
     setViewMode(mode);
@@ -176,17 +189,20 @@ function Inventory({ user }) {
 
     return (
       <div style={style} className="table-row">
-        <div className="table-cell" style={{ flex: '0 0 50px', justifyContent: 'center' }}>
-          <button onClick={() => handleEditClick(productDocId)} className="outline secondary row-edit-btn">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
-          </button>
+        {/* NEW: wrapper to control internal layout even when react-window sets inline position/height */}
+        <div className="table-row-inner">
+          <div className="table-cell" style={{ flex: '0 0 50px', justifyContent: 'center' }}>
+            <button onClick={() => handleEditClick(productDocId)} className="outline secondary row-edit-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+            </button>
+          </div>
+          <div className="table-cell id-cell" style={{ flex: '0 0 80px' }}>{productInfo?.id || 'N/A'}</div>
+          <div className="table-cell" style={{ flex: '2 1 0' }}>{productInfo?.name || 'N/A'}</div>
+          <div className="table-cell" style={{ flex: '1 1 0' }}>{brand?.name || <span className="muted">-</span>}</div>
+          <div className="table-cell numeric" style={{ flex: '1 1 0' }}>{productInfo?.price != null ? `$${Number(productInfo.price).toFixed(2)}` : 'N/A'}</div>
+          <div className="table-cell numeric" style={{ flex: '1 1 0' }}>{productInfo?.cost != null ? `$${Number(productInfo.cost).toFixed(2)}` : 'N/A'}</div>
+          <div className="table-cell numeric" style={{ flex: '0 0 100px', justifyContent: 'flex-start' }}>{quantity}</div>
         </div>
-        <div className="table-cell id-cell" style={{ flex: '0 0 80px' }}>{productInfo?.id || 'N/A'}</div>
-        <div className="table-cell" style={{ flex: '2 1 0' }}>{productInfo?.name || 'N/A'}</div>
-        <div className="table-cell" style={{ flex: '1 1 0' }}>{brand?.name || <span className="muted">-</span>}</div>
-        <div className="table-cell numeric" style={{ flex: '1 1 0' }}>{productInfo?.price != null ? `$${Number(productInfo.price).toFixed(2)}` : 'N/A'}</div>
-        <div className="table-cell numeric" style={{ flex: '1 1 0' }}>{productInfo?.cost != null ? `$${Number(productInfo.cost).toFixed(2)}` : 'N/A'}</div>
-        <div className="table-cell numeric" style={{ flex: '0 0 100px', justifyContent: 'flex-start' }}>{quantity}</div>
       </div>
     );
   };
@@ -206,7 +222,14 @@ function Inventory({ user }) {
             <div className="inventory-controls">
               <ProductSearchBar searchTerm={searchTerm} onSearchChange={setSearchTerm} />
               <div className="view-switcher">
-                <button onClick={() => handleSetViewMode('list')} className={`outline secondary ${viewMode === 'list' ? 'active' : ''}`}>Lista</button>
+                <button
+                  disabled
+                  aria-disabled="true"
+                  title="Modo lista deshabilitado"
+                  className={`outline secondary disabled ${viewMode === 'list' ? 'active' : ''}`}
+                >
+                  Lista
+                </button>
                 <button onClick={() => handleSetViewMode('grid')} className={`outline secondary ${viewMode === 'grid' ? 'active' : ''}`}>Cuadrícula</button>
               </div>
             </div>
@@ -247,39 +270,76 @@ function Inventory({ user }) {
                         <div className="table-cell numeric" style={{ flex: '1 1 0' }}>Costo</div>
                         <div className="table-cell numeric" style={{ flex: '0 0 100px', justifyContent: 'flex-start' }}>Cantidad</div>
                       </div>
-                      <List className="rw-outer" height={600} itemCount={filteredAndSortedKeys.length} itemSize={45} width={'100%'}>
+                      {/* use responsive row height so mobile rows can expand into vertical layout */}
+                      <List className="rw-outer" height={600} itemCount={filteredAndSortedKeys.length} itemSize={listRowHeight} width={'100%'}>
                         {Row}
                       </List>
                     </div>
                   </div>
                 ) : (
-                  <div className="inventory-grid">
-                    {filteredAndSortedKeys.map(productDocId => {
-                      const productInfo = productsMap[productDocId];
-                      const inventoryProductData = selectedInventory?.products?.[productDocId];
-                      const quantity = Number(inventoryProductData?.quantity) || 0;
-                      const brand = brands.find(b => b.id === productInfo?.brandId);
-                      const hasImage = !!productInfo?.image;
-                      return (
-                        <div key={productDocId} className="inventory-card">
-                          <button onClick={() => handleEditClick(productDocId)} className="outline secondary card-edit-btn">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
-                          </button>
-                          <div className={`card-media ${hasImage ? 'has-image' : 'fallback'}`}>
-                            {hasImage && <img className="card-img" src={productInfo.image} alt={productInfo?.name ? `Imagen de ${productInfo.name}` : 'Imagen del producto'} loading="lazy" />}
-                            <div className="img-fallback" aria-hidden={hasImage}>?</div>
+                  // GRID -> virtualized single-column rows usando el layout de ProductSearchModal (lps-row)
+                  <div className="inventory-lps" style={{ width: '100%' }}>
+                    <List
+                      className="rw-outer"
+                      height={600}
+                      itemCount={filteredAndSortedKeys.length}
+                      itemSize={74} /* altura en ProductSearchModal: --lps-row-height (74). Ajusta si quieres más espacio */
+                      width={'100%'}
+                    >
+                      {({ index, style }) => {
+                        const productDocId = filteredAndSortedKeys[index];
+                        const productInfo = productsMap[productDocId];
+                        const inventoryProductData = selectedInventory?.products?.[productDocId];
+                        const quantity = Number(inventoryProductData?.quantity) || 0;
+                        const brand = brands.find(b => b.id === productInfo?.brandId);
+                        const hasImage = !!productInfo?.image;
+                        const priceLabel = productInfo?.price != null ? `$${Number(productInfo.price).toFixed(2)}` : 'N/A';
+
+                        return (
+                          <div key={productDocId} style={style}>
+                            <div
+                              className={`lps-row${quantity === 0 ? ' out' : ''}`}
+                              role="article"
+                              aria-label={productInfo?.name || 'Producto'}
+                              style={{ cursor: 'default' }}
+                            >
+                              <div className="lps-thumb" style={{ flex: '0 0 54px' }}>
+                                {hasImage ? (
+                                  <img
+                                    src={productInfo.image}
+                                    alt={productInfo?.name || ''}
+                                    loading="lazy"
+                                    onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+                                  />
+                                ) : (
+                                  <span className="lps-thumb-ph" aria-hidden="true">?</span>
+                                )}
+                              </div>
+
+                              <div className="lps-main">
+                                <div className="lps-line1">
+                                  <span className="lps-name">{productInfo?.name || 'N/A'}</span>
+                                  <span className="lps-price">{priceLabel}</span>
+                                </div>
+                                <div className="lps-line2">
+                                  <span className="lps-id">ID: {productInfo?.id ?? 'N/A'}</span>
+                                  <span className="lps-stock">Stock: {quantity}</span>
+                                  <span className="lps-price-bs" aria-hidden="true" style={{ marginLeft: '0.6rem', color: 'var(--lps-text-dim)', fontSize: '0.86rem' }}>
+                                    {brand?.name || '-'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: '0.6rem' }}>
+                                <button onClick={() => handleEditClick(productDocId)} className="outline secondary row-edit-btn" aria-label={`Editar ${productInfo?.name || ''}`}>
+                                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                </button>
+                              </div>
+                            </div>
                           </div>
-                          <div className="card-name">{productInfo?.name || 'N/A'}</div>
-                          <div className="card-id">ID: {productInfo?.id || 'N/A'}</div>
-                          <div className="card-brand">{brand?.name || '-'}</div>
-                          <div className="card-details">
-                            <span>Precio: <strong>{productInfo?.price != null ? `$${Number(productInfo.price).toFixed(2)}` : 'N/A'}</strong></span>
-                            <span>Costo: <strong>{productInfo?.cost != null ? `$${Number(productInfo.cost).toFixed(2)}` : 'N/A'}</strong></span>
-                          </div>
-                          <div className="card-stock">Stock: {quantity}</div>
-                        </div>
-                      );
-                    })}
+                        );
+                      }}
+                    </List>
                   </div>
                 )}
               </article>

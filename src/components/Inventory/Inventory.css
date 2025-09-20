@@ -1,94 +1,12 @@
-/* Tokens de tema para tarjetas de inventario */
-:root,
-[data-theme="light"] {
-  --inv-card-bg: var(--pico-card-background-color, #ffffff);
-  --inv-card-border: var(--pico-muted-border-color, #e5e7eb);
-  --inv-card-text: var(--pico-text-color, #111827);
-  --inv-card-muted: var(--pico-secondary, #6b7280);
-  --inv-card-hover-bg: color-mix(in srgb, var(--inv-card-bg), #000 3%);
-  --inv-divider: color-mix(in srgb, var(--inv-card-border), transparent 30%);
-  --inv-shadow: 0 1px 2px rgba(0,0,0,.06), 0 2px 6px rgba(0,0,0,.08);
-  --inv-shadow-hover: 0 8px 24px rgba(0,0,0,.12);
-  --inv-ring: 0 0 0 3px color-mix(in srgb, var(--pico-primary, #2563eb), transparent 70%);
-  --inv-chip-bg: color-mix(in srgb, var(--pico-primary, #2563eb), #fff 90%);
-  --inv-chip-text: var(--pico-primary, #2563eb);
+/* filepath: c:\Users\nosre\OneDrive\Documents\Github\Trabajo\local-software\frontend\src\components\Inventory\Inventory.css */
+/* Inventario — estilos para modo LISTA (limpio y con soporte prefers-color-scheme) */
 
-  /* Acentos compartidos con la vista de lista */
-  --inv-card-accent: color-mix(in srgb, var(--pico-primary, #2563eb), #fff 80%);
-  --inv-card-accent-strong: var(--pico-primary, #2563eb);
-  --inv-card-grad-top: color-mix(in srgb, var(--inv-card-bg), #000 2%);
-  --inv-card-grad-bottom: color-mix(in srgb, var(--inv-card-bg), transparent 100%);
-  --inv-card-alt-bg: color-mix(in srgb, var(--inv-card-bg), #000 1.5%);
-  --inv-card-chip-border: color-mix(in srgb, var(--pico-primary, #2563eb), #000 85%);
-
-  /* Media tokens (claro) */
-  --inv-media-bg: color-mix(in srgb, var(--inv-card-bg), #000 2%);
-  --inv-media-border: var(--inv-card-border);
-  --inv-media-fg: var(--inv-card-muted);
-}
-
-[data-theme="dark"] {
-  --inv-card-bg: var(--pico-card-background-color, #0f172a);
-  --inv-card-border: color-mix(in srgb, #fff, transparent 88%);
-  --inv-card-text: var(--pico-text-color, #e6edf3);
-  --inv-card-muted: color-mix(in srgb, var(--inv-card-text), transparent 55%);
-  --inv-card-hover-bg: color-mix(in srgb, var(--inv-card-bg), #fff 4%);
-  --inv-divider: color-mix(in srgb, var(--inv-card-border), transparent 10%);
-  --inv-shadow: 0 1px 0 rgba(255,255,255,.05), 0 8px 24px rgba(0,0,0,.3);
-  --inv-shadow-hover: 0 1px 0 rgba(255,255,255,.07), 0 12px 32px rgba(0,0,0,.45);
-  --inv-ring: 0 0 0 3px color-mix(in srgb, var(--pico-primary, #3b82f6), transparent 65%);
-  --inv-chip-bg: color-mix(in srgb, var(--pico-primary, #3b82f6), transparent 85%);
-  --inv-chip-text: color-mix(in srgb, var(--pico-primary, #3b82f6), #fff 12%);
-
-  --inv-card-accent: color-mix(in srgb, var(--pico-primary, #3b82f6), #000 60%);
-  --inv-card-accent-strong: var(--pico-primary, #3b82f6);
-  --inv-card-grad-top: color-mix(in srgb, var(--inv-card-bg), #fff 6%);
-  --inv-card-grad-bottom: color-mix(in srgb, var(--inv-card-bg), transparent 100%);
-  --inv-card-alt-bg: color-mix(in srgb, var(--inv-card-bg), #fff 4%);
-  --inv-card-chip-border: color-mix(in srgb, var(--pico-primary, #3b82f6), #fff 70%);
-
-  /* Media tokens (oscuro) */
-  --inv-media-bg: color-mix(in srgb, var(--inv-card-bg), #fff 6%);
-  --inv-media-border: color-mix(in srgb, var(--inv-card-border), #fff 10%);
-  --inv-media-fg: var(--inv-card-muted);
-}
-
-/* Si no usas data-theme, respeta el modo del SO */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
-    --inv-card-bg: var(--pico-card-background-color, #0f172a);
-    --inv-card-border: color-mix(in srgb, #fff, transparent 88%);
-    --inv-card-text: var(--pico-text-color, #e6edf3);
-    --inv-card-muted: color-mix(in srgb, var(--inv-card-text), transparent 55%);
-    --inv-card-hover-bg: color-mix(in srgb, var(--inv-card-bg), #fff 4%);
-    --inv-divider: color-mix(in srgb, var(--inv-card-border), transparent 10%);
-    --inv-shadow: 0 1px 0 rgba(255,255,255,.05), 0 8px 24px rgba(0,0,0,.3);
-    --inv-shadow-hover: 0 1px 0 rgba(255,255,255,.07), 0 12px 32px rgba(0,0,0,.45);
-    --inv-ring: 0 0 0 3px color-mix(in srgb, var(--pico-primary, #3b82f6), transparent 65%);
-    --inv-chip-bg: color-mix(in srgb, var(--pico-primary, #3b82f6), transparent 85%);
-    --inv-chip-text: color-mix(in srgb, var(--pico-primary, #3b82f6), #fff 12%);
-
-    --inv-card-accent: color-mix(in srgb, var(--pico-primary, #3b82f6), #000 60%);
-    --inv-card-accent-strong: var(--pico-primary, #3b82f6);
-    --inv-card-grad-top: color-mix(in srgb, var(--inv-card-bg), #fff 6%);
-    --inv-card-grad-bottom: color-mix(in srgb, var(--inv-card-bg), transparent 100%);
-    --inv-card-alt-bg: color-mix(in srgb, var(--inv-card-bg), #fff 4%);
-    --inv-card-chip-border: color-mix(in srgb, var(--pico-primary, #3b82f6), #fff 70%);
-
-    /* Media tokens (oscuro) */
-    --inv-media-bg: color-mix(in srgb, var(--inv-card-bg), #fff 6%);
-    --inv-media-border: color-mix(in srgb, var(--inv-card-border), #fff 10%);
-    --inv-media-fg: var(--inv-card-muted);
-  }
-}
-
-/* Tokens extra para la vista de Lista */
-:root,
-[data-theme="light"] {
+/* --- Tokens por defecto (light) --- */
+:root {
   --inv-list-bg: var(--pico-card-background-color, #ffffff);
   --inv-list-border: var(--pico-muted-border-color, #e5e7eb);
   --inv-header-bg: color-mix(in srgb, var(--inv-list-bg), #000 2%);
-  --inv-header-text: var(--inv-card-text, #111827);
+  --inv-header-text: var(--pico-text-color, #111827);
   --inv-row-bg: transparent;
   --inv-row-alt-bg: color-mix(in srgb, var(--inv-list-bg), #000 1.5%);
   --inv-row-hover: color-mix(in srgb, var(--inv-list-bg), #000 5%);
@@ -96,29 +14,17 @@
   --inv-col-divider: color-mix(in srgb, var(--inv-list-border), transparent 55%);
   --inv-scroll-thumb: color-mix(in srgb, var(--pico-primary, #2563eb), #888 65%);
   --inv-scroll-track: color-mix(in srgb, var(--inv-list-bg), #000 5%);
+  --inv-card-muted: var(--pico-secondary, #6b7280);
+  --inv-card-text: var(--pico-text-color, #111827);
 }
 
-[data-theme="dark"] {
-  --inv-list-bg: var(--pico-card-background-color, #0f172a);
-  --inv-list-border: color-mix(in srgb, #fff, transparent 88%);
-  --inv-header-bg: color-mix(in srgb, var(--inv-list-bg), #fff 6%);
-  --inv-header-text: var(--inv-card-text, #e6edf3);
-  --inv-row-bg: transparent;
-  --inv-row-alt-bg: color-mix(in srgb, var(--inv-list-bg), #fff 4%);
-  --inv-row-hover: color-mix(in srgb, var(--inv-list-bg), #fff 7%);
-  --inv-row-divider: color-mix(in srgb, var(--inv-list-border), transparent 10%);
-  --inv-col-divider: color-mix(in srgb, var(--inv-list-border), transparent 30%);
-  --inv-scroll-thumb: color-mix(in srgb, var(--pico-primary, #3b82f6), #888 45%);
-  --inv-scroll-track: color-mix(in srgb, var(--inv-list-bg), #000 15%);
-}
-
-/* Respeto al modo del SO si no hay data-theme */
+/* --- Soporte automático: si el dispositivo está en dark theme --- */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
+  :root {
     --inv-list-bg: var(--pico-card-background-color, #0f172a);
     --inv-list-border: color-mix(in srgb, #fff, transparent 88%);
     --inv-header-bg: color-mix(in srgb, var(--inv-list-bg), #fff 6%);
-    --inv-header-text: var(--inv-card-text, #e6edf3);
+    --inv-header-text: var(--pico-text-color, #e6edf3);
     --inv-row-bg: transparent;
     --inv-row-alt-bg: color-mix(in srgb, var(--inv-list-bg), #fff 4%);
     --inv-row-hover: color-mix(in srgb, var(--inv-list-bg), #fff 7%);
@@ -126,106 +32,99 @@
     --inv-col-divider: color-mix(in srgb, var(--inv-list-border), transparent 30%);
     --inv-scroll-thumb: color-mix(in srgb, var(--pico-primary, #3b82f6), #888 45%);
     --inv-scroll-track: color-mix(in srgb, var(--inv-list-bg), #000 15%);
+    --inv-card-muted: color-mix(in srgb, var(--pico-text-color, #e6edf3), transparent 55%);
+    --inv-card-text: var(--pico-text-color, #e6edf3);
   }
 }
 
-/* Estilos para la tabla virtualizada */
+/* --- Contenedor principal de la lista (tabla virtual) --- */
 .virtual-table {
-    overflow-x: auto; /* Permite el scroll horizontal */
-    width: 100%;
-    background: var(--inv-list-bg);
-    border: 1px solid var(--inv-list-border);
-    border-radius: var(--pico-border-radius, 0.5rem);
-    box-shadow: var(--inv-shadow);
+  width: 100%;
+  background: var(--inv-list-bg);
+  border: 1px solid var(--inv-list-border);
+  border-radius: var(--pico-border-radius, 0.5rem);
+  box-shadow: 0 1px 2px rgba(0,0,0,.06);
+  overflow: hidden; /* evitar dobles scroll; react-window tiene su propio scroll vertical */
 }
 
-.virtual-table::-webkit-scrollbar {
-  height: 10px;
-}
-.virtual-table::-webkit-scrollbar-track {
-  background: var(--inv-scroll-track);
-  border-radius: 999px;
-}
-.virtual-table::-webkit-scrollbar-thumb {
-  background: var(--inv-scroll-thumb);
-  border-radius: 999px;
+/* Custom scrollbar (solo estético) */
+.virtual-table::-webkit-scrollbar { height: 10px; }
+.virtual-table::-webkit-scrollbar-track { background: var(--inv-scroll-track); border-radius: 999px; }
+.virtual-table::-webkit-scrollbar-thumb { background: var(--inv-scroll-thumb); border-radius: 999px; }
+
+/* contenido que react-window renderiza. NO forzar min-width aquí */
+.virtual-table .table-content {
+  width: 100%;
+  min-width: 0; /* importante para que flex items puedan encogerse */
 }
 
-.virtual-table .table-header,
-.virtual-table .table-row {
-    display: flex;
-    align-items: center;
-    padding: 0 0.75rem;
-    box-sizing: border-box; /* Asegura que el padding y borde se incluyan en el alto total */
-    min-width: 700px; /* Ancho mínimo para el contenido de la tabla antes de que aparezca el scroll */
-}
-
+/* header: sticky arriba */
 .virtual-table .table-header {
-    font-weight: bold;
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    background: var(--inv-header-bg);
-    color: var(--inv-header-text);
-    padding: 0.6rem 0.75rem;
-    border-bottom: 1px solid var(--inv-row-divider);
-    min-width: 760px; /* mejora legibilidad, ajusta si necesitas */
-    font-size: 0.85rem;
-    letter-spacing: 0.02em;
-    font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--inv-header-bg);
+  color: var(--inv-header-text);
+  border-bottom: 1px solid var(--inv-row-divider);
+  font-weight: 600;
+  font-size: 0.85rem;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
+/* fila base usada por react-window (desktop layout preserved) */
 .virtual-table .table-row {
-    display: flex;
-    align-items: center;
-    padding: 0 0.75rem;
-    box-sizing: border-box;
-    min-width: 760px;
-    height: 45px; /* mantener en sync con itemSize */
-    /* Esta es la línea que separa cada producto */
-    border-bottom: 1px solid var(--inv-row-divider);
-    background: var(--inv-row-bg);
-    transition: background-color 0.15s ease;
+  display: flex;
+  align-items: center;
+  padding: 0 0.75rem;
+  box-sizing: border-box;
+  min-height: 45px;
+  height: auto;
+  border-bottom: 1px solid var(--inv-row-divider);
+  background: var(--inv-row-bg);
+  transition: background-color .12s ease;
 }
 
-.virtual-table .table-row:nth-child(even) {
-  background: var(--inv-row-alt-bg);
-}
+/* alternado y hover */
+.virtual-table .table-row:nth-child(even) { background: var(--inv-row-alt-bg); }
+.virtual-table .table-row:hover { background: var(--inv-row-hover); }
 
-.virtual-table .table-row:hover {
-  background: var(--inv-row-hover);
-}
-
+/* celdas para desktop (flex) */
 .virtual-table .table-cell {
-    display: flex;
-    align-items: center;
-    padding: 0 0.5rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    width: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 0.5rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 0;
+  min-width: 0;
 }
 
-/* Separadores de columna */
+/* separadores entre columnas (visual) */
 .virtual-table .table-row .table-cell:not(:last-child),
 .virtual-table .table-header > *:not(:last-child) {
   border-right: 1px solid var(--inv-col-divider);
 }
 
-/* Números alineados y tabulares */
+/* alineación para columnas numéricas */
 .virtual-table .table-cell.numeric {
   justify-content: flex-end;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-/* ID monoespaciado y tono secundario */
+/* ID cell: mantener tamaño fijo */
 .virtual-table .table-cell.id-cell {
+  flex: 0 0 80px;
+  min-width: 56px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   color: var(--inv-card-muted);
 }
 
-/* Botón de edición en filas */
+/* botón editar por defecto (desktop) */
 .virtual-table .row-edit-btn {
   width: 2rem;
   height: 2rem;
@@ -238,250 +137,41 @@
   border: 1px solid var(--inv-list-border);
   border-radius: 999px;
   color: var(--inv-header-text);
-  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: background-color .12s ease, color .12s ease, border-color .12s ease;
 }
-
 .virtual-table .row-edit-btn:hover {
   background-color: var(--pico-primary);
   color: var(--pico-primary-inverse);
   border-color: var(--pico-primary);
 }
 
-/* --- Estilos para la Vista de Cuadrícula --- */
-.inventory-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 1rem;
-  align-items: stretch;
-}
+/* evitar que react-window provoque scroll horizontal propio */
+.rw-outer { overflow-x: hidden !important; }
 
-.inventory-card {
-  border: 1px solid var(--inv-card-border);
-  border-radius: calc(var(--pico-border-radius, 0.5rem) + 2px);
-  background: var(--inv-card-bg);
-  color: var(--inv-card-text);
-  padding: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  min-height: 180px;
-  box-shadow: var(--inv-shadow);
+/* --- Overrides ProductSearchModal reuse (kept for desktop consistency) --- */
+.inventory-lps .lps-row { align-items: center; padding: 0 0.5rem; }
+.inventory-lps .lps-row > * { align-items: center; display: flex; }
+.inventory-lps .lps-main { min-width: 0; display: flex; flex-direction: column; gap: 0.12rem; }
+.inventory-lps .lps-line1 { display:flex; align-items:center; gap:0.5rem; width:100%; }
+.inventory-lps .lps-name { flex:1 1 0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:0.85rem; line-height:1.05; font-weight:600; }
+.inventory-lps .lps-line1 .lps-price { flex:0 0 auto; margin-left:auto; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:22ch; font-size:0.95rem; text-align:right; }
+.inventory-lps .lps-line2 { display:flex; gap:0.6rem; align-items:center; font-size:0.86rem; color:var(--lps-text-dim, #9aa0a6); min-width:0; }
+.inventory-lps .lps-price-bs { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:18ch; }
+.inventory-lps .row-edit-btn { width:18px; height:18px; padding:0; margin:0; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box; background:transparent; border:1px solid rgba(0,0,0,0.06); }
+.inventory-lps .row-edit-btn svg { width:12px; height:12px; display:block; line-height:0; }
+.inventory-lps .lps-row { padding-right:0.5rem; }
+
+/* Wrapper inside react-window row to avoid layout flicker */
+.virtual-table .table-row-inner {
   position: relative;
-  transition: box-shadow 0.2s ease, transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
-
-  /* Acentos compartidos con la vista de lista */
-  --inv-card-accent: color-mix(in srgb, var(--pico-primary, #2563eb), #fff 80%);
-  --inv-card-accent-strong: var(--pico-primary, #2563eb);
-  --inv-card-grad-top: color-mix(in srgb, var(--inv-card-bg), #000 2%);
-  --inv-card-grad-bottom: color-mix(in srgb, var(--inv-card-bg), transparent 100%);
-  --inv-card-alt-bg: color-mix(in srgb, var(--inv-card-bg), #000 1.5%);
-  --inv-card-chip-border: color-mix(in srgb, var(--pico-primary, #2563eb), #000 85%);
-}
-
-.inventory-card:hover {
-  background: var(--inv-card-hover-bg);
-  --inv-card-base-bg: var(--inv-card-hover-bg); /* mantiene el gradiente al hacer hover */
-  box-shadow: var(--inv-shadow-hover);
-  transform: translateY(-2px);
-}
-
-.inventory-card:focus-within {
-  outline: none;
-  box-shadow: var(--inv-shadow-hover), var(--inv-ring);
-}
-
-/* Botón de edición */
-.inventory-card .card-edit-btn {
-  position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
-  width: 2.25rem;
-  height: 2.25rem;
-  padding: 0;
-  margin: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
-  background: color-mix(in srgb, var(--inv-card-bg), transparent 0%);
-  border: 1px solid var(--inv-card-border);
-  border-radius: 50%;
-  color: var(--inv-card-text);
-  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-
-  border-color: color-mix(in srgb, var(--inv-card-accent-strong), var(--inv-card-border) 80%);
-}
-
-.inventory-card .card-edit-btn:hover {
-  background-color: var(--pico-primary);
-  color: var(--pico-primary-inverse);
-  border-color: var(--pico-primary);
-}
-
-.inventory-card .card-edit-btn:focus-visible {
-  outline: none;
-  box-shadow: var(--inv-ring);
-}
-
-/* Contenido */
-.inventory-card .card-name {
-  font-weight: 650;
-  font-size: 1.15rem;
-  line-height: 1.35;
-  color: var(--inv-card-text);
-  padding-right: 2.5rem; /* espacio para el botón */
-  margin-bottom: 0.1rem;
-}
-
-.inventory-card .card-id {
-  font-size: 0.8rem;
-  color: var(--inv-card-muted);
-  margin-bottom: 0.25rem;
-}
-
-/* Chip de marca */
-.inventory-card .card-brand {
-  display: inline-flex;
-  align-self: flex-start;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.2rem 0.55rem;
-  border-radius: 999px;
-  background: var(--inv-chip-bg);
-  color: var(--inv-chip-text);
-  font-size: 0.8rem;
-  font-weight: 600;
-  margin-bottom: 0.6rem;
-  border: 1px solid var(--inv-card-chip-border);
-}
-
-.inventory-card .card-details {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.92rem;
-  gap: 1rem;
-  margin-bottom: 0.5rem;
-}
-
-.inventory-card .card-details span {
-  display: flex;
-  flex-direction: column;
-  flex-basis: 50%;
-  color: var(--inv-card-text);
-}
-
-.inventory-card .card-details span:last-child {
-  text-align: right;
-}
-
-.inventory-card .card-details strong {
-  font-weight: 600;
-  color: var(--pico-primary);
-}
-
-.inventory-card .card-stock {
-  margin-top: auto;
-  padding-top: 0.75rem;
-  font-size: 0.98rem;
-  font-weight: 650;
-  text-align: right;
-  color: var(--inv-card-text);
-  border-top: 1px solid var(--inv-divider);
-}
-
-/* Eliminamos la regla que ocultaba el botón */
-.inventory-card .card-header {
-  display: none;
-}
-
-/* Contenedor interno que comparte el scroll horizontal con header y filas */
-.virtual-table .table-content {
-  min-width: 760px; /* mantener en sync con tus columnas */
-}
-
-/* Forzar que react-window no cree scroll horizontal propio */
-.virtual-table .rw-outer {
-  overflow-x: hidden !important;
-}
-
-/* Zebra sutil como en la lista */
-.inventory-grid .inventory-card:nth-child(even) {
-  --inv-card-base-bg: var(--inv-card-alt-bg);
-}
-
-/* Barra de acento en el borde izquierdo */
-.inventory-card::before {
-  content: "";
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 4px;
-  border-top-left-radius: inherit;
-  border-bottom-left-radius: inherit;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--inv-card-accent-strong), transparent 20%),
-    color-mix(in srgb, var(--inv-card-accent-strong), transparent 60%)
-  );
-  opacity: 0.85;
-  transition: width 0.2s ease, opacity 0.2s ease;
-  pointer-events: none;
-}
-
-.inventory-card:hover::before,
-.inventory-card:focus-within::before {
-  width: 6px;
-  opacity: 1;
-}
-
-/* Media cuadrada 30% más pequeña y con más aire arriba para no tocar el botón */
-.inventory-card .card-media {
-  width: 70%;                 /* antes 80% */
-  margin: 0.75rem auto 0.6rem;/* más separación superior */
-  aspect-ratio: 1 / 1;
-  border-radius: calc(var(--pico-border-radius, 0.5rem) - 2px);
-  background: var(--inv-media-bg);
-  border: 1px solid var(--inv-media-border);
-  overflow: hidden;
-  display: grid;
-  place-items: center;
-}
-
-/* Imagen centrada y recortada */
-.inventory-card .card-img {
   width: 100%;
   height: 100%;
-  object-fit: cover;                  /* recorte manteniendo centro */
-  object-position: center;
-  display: block;
+  box-sizing: border-box;
+  padding: 0 0.75rem;
+  gap: 0.25rem;
+  overflow: hidden;
 }
 
-/* Fallback cuando no hay imagen */
-.inventory-card .card-media.fallback {
-  border-style: dashed;
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--inv-card-alt-bg), transparent 30%), transparent 60%),
-    var(--inv-media-bg);
-}
-
-.inventory-card .img-fallback {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--inv-media-fg);
-  width: 48%;
-  height: 48%;
-  border: 1px solid var(--inv-media-border);
-  border-radius: 0.75rem;
-  font-weight: 700;
-  font-size: 1.25rem;
-  user-select: none;
-}
-
-/* Oculta el fallback cuando hay imagen válida (por diseño simple) */
-.inventory-card .card-media.has-image .img-fallback {
-  display: none;
-}
-
-/* Botón de edición por encima del media */
-.inventory-card .card-edit-btn {
-  z-index: 3;
-}
+/* EOF */

@@ -34,7 +34,38 @@ const formatBs = (v) =>
 function Cashier({ user, initialActiveInventoryId }) { // añadido prop
     const { loading, products, inventories, settings } = useData();
     const [activeInventoryId, setActiveInventoryId] = useState(null);
-    const [cart, setCart] = useState([]);
+    // PESTAÑAS: 9 pestañas desplegadas por defecto (1..9)
+    const initialTabs = Array.from({ length: 9 }, (_, i) => ({ id: String(i + 1), name: String(i + 1), cart: [] }));
+    const [tabs, setTabs] = useState(() => initialTabs);
+    const [activeTabId, setActiveTabId] = useState('1');
+    // Helper: carrito actual derivado de tabs
+    const cart = React.useMemo(() => {
+        const t = tabs.find(x => x.id === activeTabId);
+        return t ? t.cart : [];
+    }, [tabs, activeTabId]);
+
+    // Mapa de reservas en OTRAS pestañas: { docId: cantidadReservada }
+    const reservedMap = React.useMemo(() => {
+        const m = Object.create(null);
+        for (const t of tabs) {
+            if (t.id === activeTabId) continue;
+            for (const it of t.cart || []) {
+                if (!it?.docId) continue;
+                m[it.docId] = (m[it.docId] || 0) + (Number(it.quantity) || 0);
+            }
+        }
+        return m;
+    }, [tabs, activeTabId]);
+
+    const setCurrentTabCart = (newCartOrUpdater) => {
+        setTabs(prev => prev.map(t => t.id === activeTabId ? {
+            ...t,
+            cart: typeof newCartOrUpdater === 'function' ? newCartOrUpdater(t.cart) : newCartOrUpdater
+        } : t));
+    };
+
+    const updateCurrentTabCart = (updater) => setCurrentTabCart(prev => updater(prev));
+
     const [error, setError] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [notification, setNotification] = useState({ message: '', type: '' });
@@ -43,6 +74,22 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
     const [customer, setCustomer] = useState({ name: '', phone: '', id: '', address: '', notes: '' });
     const [paymentMethod, setPaymentMethod] = useState('');
     const userInteractedRef = useRef(false); // NUEVO: evita sobreescritura tras interacción del usuario
+
+    // Estado temporal para editar el USD ajustado en el input sin formateos forzados
+    const [priceEditMap, setPriceEditMap] = useState({});
+
+    const commitPriceEdit = (docId) => {
+      const raw = priceEditMap[docId];
+      if (raw === undefined) return;
+      // Llama al handler que ya actualiza el carrito
+      handleAdjustedUsdChange(docId, raw);
+      // limpiar estado temporal
+      setPriceEditMap(prev => {
+        const next = { ...prev };
+        delete next[docId];
+        return next;
+      });
+    };
 
     // Mantener settings locales (para no romper dependencias de cálculo)
     React.useEffect(() => {
@@ -113,23 +160,51 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
         }
     };
 
-    // NORMALIZAR / DEDUPLICAR ENTRADAS ANTIGUAS (si ya se habían agregado duplicados sin docId)
+    // NORMALIZAR / DEDUPLICAR ENTRADAS ANTIGUAS por cada pestaña
     useEffect(() => {
-        setCart(prev => {
+        setTabs(prevTabs => prevTabs.map(tab => {
             const map = {};
             let changed = false;
-            for (const item of prev) {
-                const key = item.docId || item.id; // usar siempre esta clave
+            for (const item of tab.cart) {
+                const key = item.docId || item.id;
                 if (map[key]) {
                     map[key].quantity += item.quantity;
                     changed = true;
                 } else {
-                    map[key] = { ...item, docId: key }; // forzar docId normalizado
+                    map[key] = { ...item, docId: key };
                 }
             }
-            return changed ? Object.values(map) : prev;
-        });
+            return changed ? { ...tab, cart: Object.values(map) } : tab;
+        }));
     }, []);
+
+    // Helper: disponibilidad real considerando inventario activo y reservas en otras pestañas
+    const getAvailableForProduct = (productDocId, qtyInThisTab = 0) => {
+        const key = productDocId;
+        const activeInv = inventories.find(inv => inv.id === activeInventoryId);
+        const totalStock = Number(activeInv?.products?.[key]?.quantity) || 0;
+        const reservedInOtherTabs = tabs.reduce((sum, t) => {
+            if (t.id === activeTabId) return sum;
+            const it = t.cart.find(i => (i.docId || i.id) === key);
+            return sum + (it ? Number(it.quantity) || 0 : 0);
+        }, 0);
+        return Math.max(0, totalStock - reservedInOtherTabs - qtyInThisTab);
+    };
+
+    // Helper: detalles de reservas en otras pestañas para un producto
+    const getReservedDetails = (productDocId) => {
+        const details = [];
+        let total = 0;
+        for (const t of tabs) {
+            if (t.id === activeTabId) continue;
+            const it = (t.cart || []).find(i => (i.docId || i.id) === productDocId);
+            if (it && Number(it.quantity) > 0) {
+                total += Number(it.quantity);
+                details.push({ tabId: t.id, qty: Number(it.quantity) });
+            }
+        }
+        return { total, details };
+    };
 
     const handleAddProductToCart = (product, quantity = 1) => {
         const key = product.docId || product.id;
@@ -137,41 +212,64 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
 
         let errorMsg = null;
 
-        setCart(prev => {
+        updateCurrentTabCart(prev => {
             const existing = prev.find(i => (i.docId || i.id) === key);
-            const totalStock = Number(product.totalStock) || 0;
-            const qtyInCart = existing ? existing.quantity : 0;
+            const qtyInCart = existing ? Number(existing.quantity) : 0;
 
-            if (totalStock <= 0) {
-                errorMsg = `"${product.name}" no tiene stock.`;
+            // ahora obtenemos el stock TOTAL desde el inventario activo (no desde product.totalStock)
+            const activeInv = inventories.find(inv => inv.id === activeInventoryId);
+            const totalStock = Number(activeInv?.products?.[key]?.quantity) || Number(product.totalStock) || 0;
+
+            // CALCULA reservas en OTRAS pestañas
+            const reservedInOtherTabs = tabs.reduce((sum, t) => {
+                if (t.id === activeTabId) return sum;
+                const it = t.cart.find(i => (i.docId || i.id) === key);
+                return sum + (it ? Number(it.quantity) || 0 : 0);
+            }, 0);
+
+            const availableForActive = Math.max(0, totalStock - reservedInOtherTabs - qtyInCart);
+
+            if (totalStock <= 0 || availableForActive <= 0) {
+                errorMsg = `"${product.name}" no tiene stock disponible para añadir (reservado en otras pestañas).`;
                 return prev;
             }
-            if (qtyInCart >= totalStock) {
-                errorMsg = `No hay más stock disponible para "${product.name}".`;
-                return prev;
-            }
-            if (qtyInCart + quantity > totalStock) {
-                errorMsg = `Solo puedes añadir ${totalStock - qtyInCart} unidad(es) más de "${product.name}".`;
+            if (quantity > availableForActive) {
+                errorMsg = `Solo puedes añadir ${availableForActive} unidad(es) más de "${product.name}" en esta pestaña.`;
                 return prev;
             }
 
             if (existing) {
                 return prev.map(i =>
                     (i.docId || i.id) === key
-                        ? { ...i, docId: key, quantity: i.quantity + quantity }
+                        ? { ...i, docId: key, quantity: i.quantity + quantity, totalStock }
                         : i
                 );
             }
-            return [...prev, { ...product, docId: key, quantity }];
+
+            // --- NUEVO: inicializar priceUsdAdjusted y Bs al agregar ---
+            const unit = calculateAmounts(product.price, appSettings.dolarBCV, appSettings.dolarParalelo);
+            const roundedUsdAdj = Number((unit.usdAdjusted || 0).toFixed(2));
+            const roundedPrice = Number((product.price || 0).toFixed(2));
+            
+            return [...prev, {
+                ...product,
+                docId: key,
+                quantity,
+                totalStock,           // guardamos el totalStock que refleje el inventario activo al añadir
+                basePrice: product.price,      // precio original (oculto)
+                price: roundedPrice,          // price interno (redondeado a 2 decimales)
+                priceUsdAdjusted: roundedUsdAdj,
+                priceBs: unit.bs,
+                priceBsDecimals: unit.bsDecimals,
+                customPrice: false
+            }];
         });
 
-        if (errorMsg) {
-            showNotification(errorMsg, 'error');
-        }
+        if (errorMsg) showNotification(errorMsg, 'error');
     };
 
     const handleRemoveProductFromCart = (productDocId) => {
-        setCart(curr => curr.filter(i => i.docId !== productDocId));
+        setCurrentTabCart(curr => curr.filter(i => i.docId !== productDocId));
     };
 
     const handleQuantityChange = (productDocId, newQuantity) => {
@@ -179,15 +277,24 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
         if (!Number.isFinite(q) || q < 0) return;
 
         const activeInv = inventories.find(inv => inv.id === activeInventoryId);
-        const stock = Number(activeInv?.products?.[productDocId]?.quantity) || 0;
+        const totalStock = Number(activeInv?.products?.[productDocId]?.quantity) || 0;
+
+        // reservas en otras pestañas (excluyendo la activa)
+        const reservedInOtherTabs = tabs.reduce((sum, t) => {
+            if (t.id === activeTabId) return sum;
+            const it = (t.cart || []).find(i => (i.docId || i.id) === productDocId);
+            return sum + (it ? Number(it.quantity) || 0 : 0);
+        }, 0);
+
+        const allowedMax = Math.max(0, totalStock - reservedInOtherTabs);
         const prodInfo = products.find(p => p.docId === productDocId);
 
-        if (q > stock) {
-            showNotification(`Stock máximo para "${prodInfo?.name || ''}" en este inventario es ${stock}.`, 'error');
-            setCart(curr => curr.map(i => i.docId === productDocId ? { ...i, quantity: stock } : i));
+        if (q > allowedMax) {
+            showNotification(`Stock máximo disponible para "${prodInfo?.name || ''}" es ${allowedMax} (reservado en otras pestañas).`, 'error');
+            setCurrentTabCart(curr => curr.map(i => i.docId === productDocId ? { ...i, quantity: allowedMax } : i));
             return;
         }
-        setCart(curr => curr.map(i => i.docId === productDocId ? { ...i, quantity: q } : i));
+        setCurrentTabCart(curr => curr.map(i => i.docId === productDocId ? { ...i, quantity: q } : i));
     };
 
     // Confirmar venta sin lecturas extra (usa inventario del contexto)
@@ -231,6 +338,55 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                     }
                     throw err;
                 }
+            }
+
+            // --- RECONCILIAR OTRAS PESTAÑAS: ajustar cantidades si ahora hay menos stock ---
+            try {
+                // stock actual antes de la venta (tomado del activeInv leído arriba)
+                const currentStockMap = {};
+                for (const [pid, pdata] of Object.entries(activeInv.products || {})) {
+                    currentStockMap[pid] = Number(pdata?.quantity) || 0;
+                }
+                // cantidad vendida por producto en esta venta
+                const soldMap = cart.reduce((m, it) => { m[it.docId] = (m[it.docId] || 0) + Number(it.quantity || 0); return m; }, {});
+
+                // stock restante por producto (después de la venta local)
+                const stockAfterMap = {};
+                for (const pid of Object.keys(soldMap)) {
+                    stockAfterMap[pid] = Math.max(0, (currentStockMap[pid] || 0) - soldMap[pid]);
+                }
+
+                // Ajustar otras pestañas en orden ascendente (1..9). Se asigna stock restante en orden.
+                const adjustedInfo = []; // acumula mensajes para notificación
+                setTabs(prevTabs => {
+                    // clonar pestañas y carritos
+                    const clone = prevTabs.map(t => ({ ...t, cart: (t.cart || []).map(i => ({ ...i })) }));
+                    const otherTabs = clone.filter(t => t.id !== activeTabId).sort((a,b) => Number(a.id) - Number(b.id));
+
+                    for (const pid of Object.keys(stockAfterMap)) {
+                        let remaining = stockAfterMap[pid];
+                        for (const tab of otherTabs) {
+                            const item = tab.cart.find(i => i.docId === pid);
+                            if (!item) continue;
+                            const oldQty = item.quantity || 0;
+                            const allowed = Math.min(oldQty, remaining);
+                            if (oldQty !== allowed) {
+                                adjustedInfo.push(`${item.name || pid}: ${oldQty}→${allowed}`);
+                                item.quantity = allowed;
+                            }
+                            remaining = Math.max(0, remaining - allowed);
+                        }
+                    }
+                    return clone;
+                });
+
+                if (adjustedInfo.length) {
+                    const short = adjustedInfo.slice(0, 6).join(', ');
+                    const msg = `Se ajustaron cantidades en otras pestañas: ${short}${adjustedInfo.length > 6 ? '…' : ''}`;
+                    showNotification(msg, 'info', 6000);
+                }
+            } catch (reconErr) {
+                console.warn('Reconcilación de pestañas fallida:', reconErr);
             }
 
             // Registrar venta en history/main/sells
@@ -279,7 +435,8 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
             });
 
             showNotification("Venta realizada con éxito.", 'success');
-            setCart([]);
+            // Vaciar sólo la pestaña activa
+            setCurrentTabCart([]);
             setCustomer({ name: '', phone: '', id: '', address: '', notes: '' });
             setPaymentMethod('');
         } catch (err) {
@@ -296,7 +453,7 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
         () => calculateAmounts(cartTotal, appSettings.dolarBCV, appSettings.dolarParalelo),
         [cartTotal, appSettings.dolarBCV, appSettings.dolarParalelo]
     );
-    const activeInventoryName = useMemo(() => inventories.find(inv => inv.id === activeInventoryId)?.name || 'Ninguno', [inventories, activeInventoryId]);
+    // const activeInventoryName = useMemo(() => inventories.find(inv => inv.id === activeInventoryId)?.name || 'Ninguno', [inventories, activeInventoryId]);
 
     const incrementQuantity = (docId) => {
         const item = cart.find(i => i.docId === docId);
@@ -315,23 +472,96 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
         }
     };
 
+    // NUEVO: cambiar precio unitario (USD) solo para la línea del carrito
+    const handleUnitPriceChange = (docId, raw) => {
+        const cleaned = String(raw).replace(',', '.').trim();
+        // permitir campo vacío -> 0
+        const num = cleaned === '' ? 0 : parseFloat(cleaned);
+        if (cleaned !== '' && (!Number.isFinite(num) || num < 0)) return;
+
+        setCurrentTabCart(curr => curr.map(i => {
+            if (i.docId !== docId) return i;
+            const newPrice = cleaned === '' ? 0 : num;
+            // calcular equivalencias en Bs usando la función existente
+            const unit = calculateAmounts(newPrice, appSettings.dolarBCV, appSettings.dolarParalelo);
+            return {
+                ...i,
+                // price es el precio editable (visible y usado en la venta)
+                price: newPrice,
+                // marca que fue editado (no mostramos basePrice)
+                customPrice: true,
+                // guardamos los valores calculados para mostrar sin recálculo extra
+                priceBs: unit.bs,
+                priceUsdAdjusted: unit.usdAdjusted,
+                priceBsDecimals: unit.bsDecimals
+            };
+        }));
+    };
+
+    // NUEVO: editar el USD "AJUSTADO" visible -> recalcula price (USD interno) y Bs
+    const handleAdjustedUsdChange = (docId, raw) => {
+        const cleaned = String(raw).replace(',', '.').trim();
+        const num = cleaned === '' ? 0 : parseFloat(cleaned);
+        if (cleaned !== '' && (!Number.isFinite(num) || num < 0)) return;
+
+        const bcv = Number(appSettings.dolarBCV) || 1;
+        const par = Number(appSettings.dolarParalelo) || 1;
+
+        // Redondear a 2 decimales al asignar (commit)
+        setCurrentTabCart(curr => curr.map(i => {
+            if (i.docId !== docId) return i;
+            const newUsdAdjusted = cleaned === '' ? 0 : num;
+            const newUsdAdjustedRounded = Number(newUsdAdjusted.toFixed(2));
+            // regla de 3 inversa: price (USD interno) = usdAdjusted * BCV / Paralelo
+            const newPrice = (newUsdAdjustedRounded * bcv) / par;
+            const newPriceRounded = Number(newPrice.toFixed(2));
+            const unit = calculateAmounts(newPriceRounded, bcv, par);
+            return {
+                ...i,
+                price: newPriceRounded,
+                priceUsdAdjusted: newUsdAdjustedRounded,
+                priceBs: unit.bs,
+                priceBsDecimals: unit.bsDecimals,
+                customPrice: true
+            };
+        }));
+    };
+
+    // RESET restaura a basePrice -> recalcula adjusted y Bs
+    const resetUnitPrice = (docId) => {
+        setCurrentTabCart(curr => curr.map(i => {
+            if (i.docId !== docId) return i;
+            const base = i.basePrice ?? i.price ?? 0;
+            const baseRounded = Number(Number(base).toFixed(2));
+            const unit = calculateAmounts(baseRounded, appSettings.dolarBCV, appSettings.dolarParalelo);
+            return {
+                ...i,
+                price: baseRounded,
+                customPrice: false,
+                priceUsdAdjusted: Number(unit.usdAdjusted.toFixed(2)),
+                priceBs: unit.bs,
+                priceBsDecimals: unit.bsDecimals
+            };
+        }));
+    };
+
     return (
         <>
             {/* 4. Renderizar la notificación con la clase de tipo dinámico */}
             {notification.message && (
                 <div
-                  className={`app-toast app-toast-fixed ${notification.type}`}
-                  data-icon={
-                    notification.type === 'success'
-                      ? '✓'
-                      : notification.type === 'error'
-                        ? '✕'
-                        : 'ℹ'
-                  }
-                  role="status"
-                  aria-live="polite"
+                    className={`app-toast app-toast-fixed ${notification.type}`}
+                    data-icon={
+                        notification.type === 'success'
+                            ? '✓'
+                            : notification.type === 'error'
+                                ? '✕'
+                                : 'ℹ'
+                    }
+                    role="status"
+                    aria-live="polite"
                 >
-                  {notification.message}
+                    {notification.message}
                 </div>
             )}
             <section className="cashier-container">
@@ -339,7 +569,23 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                     <header>
                         {/* --- INICIO DE LA MODIFICACIÓN VISUAL --- */}
                         <div className="cashier-header">
-                            <h2>Caja</h2>
+                            <h2>Ventas</h2>
+
+                            {/* PESTAÑAS: 9 pestañas fijas (1..9) */}
+                            <div className="tabs-row" role="tablist" aria-label="Pestañas de ventas">
+                                {tabs.map(t => (
+                                    <button
+                                        key={t.id}
+                                        role="tab"
+                                        aria-selected={t.id === activeTabId}
+                                        className={`tab-btn${t.id === activeTabId ? ' active' : ''}`}
+                                        onClick={() => setActiveTabId(t.id)}
+                                    >
+                                        {t.name}
+                                    </button>
+                                ))}
+                            </div>
+
                             <div className="inventory-selector-wrapper">
                                 <label htmlFor="main-inventory-select">Inventario Activo:</label>
                                 <select
@@ -378,46 +624,114 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                                         <div className="cart-empty">Añade productos para empezar una venta.</div>
                                     )}
                                     {cart.map(item => {
-                                        const unit = calculateAmounts(item.price, appSettings.dolarBCV, appSettings.dolarParalelo);
+                                        const unit = {
+                                          bs: item.priceBs ?? calculateAmounts(item.price, appSettings.dolarBCV, appSettings.dolarParalelo).bs,
+                                          usdAdjusted: item.priceUsdAdjusted ?? calculateAmounts(item.price, appSettings.dolarBCV, appSettings.dolarParalelo).usdAdjusted,
+                                          bsDecimals: item.priceBsDecimals ?? calculateAmounts(item.price, appSettings.dolarBCV, appSettings.dolarParalelo).bsDecimals
+                                        };
                                         const subtotalUSD = item.price * item.quantity;
                                         const sub = calculateAmounts(subtotalUSD, appSettings.dolarBCV, appSettings.dolarParalelo);
                                         return (
                                             <div className="cart-row" key={item.docId}>
                                                 <div className="cart-cell product" data-label="Producto">
                                                     <span className="cart-name">{item.name}</span>
+                                                    {item.customPrice && (
+                                                        <small style={{ color: 'var(--c-accent)' }}>
+                                                            Precio personalizado
+                                                        </small>
+                                                    )}
                                                 </div>
                                                 <div className="cart-cell price" data-label="Precio">
-                                                    <span>{formatBs(unit.bs)}</span>
-                                                    <small>≈ {formatUSD(unit.usdAdjusted)}</small>
+                                                    <div className="unit-price-row">
+                                                        <label className="unit-price-editor">
+                                                            <input
+                                                                type="text"
+                                                                inputMode="decimal"
+                                                                pattern="[0-9.,]*"
+                                                                value={ priceEditMap[item.docId] ?? (
+                                                                    (item.priceUsdAdjusted !== undefined && item.priceUsdAdjusted !== null)
+                                                                        ? String(item.priceUsdAdjusted)
+                                                                        : (Number.isFinite(item.price) ? String(calculateAmounts(item.price, appSettings.dolarBCV, appSettings.dolarParalelo).usdAdjusted) : '')
+                                                                ) }
+                                                                onChange={(e) => {
+                                                                    // permitir edición libre: sólo actualiza el mapa temporal
+                                                                    setPriceEditMap(prev => ({ ...prev, [item.docId]: e.target.value }));
+                                                                }}
+                                                                onBlur={() => commitPriceEdit(item.docId)}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') {
+                                                                        e.currentTarget.blur(); // disparará onBlur -> commit
+                                                                    } else if (e.key === 'Escape') {
+                                                                        // cancelar edición
+                                                                        setPriceEditMap(prev => {
+                                                                            const next = { ...prev };
+                                                                            delete next[item.docId];
+                                                                            return next;
+                                                                        });
+                                                                    }
+                                                                }}
+                                                                aria-label={`Precio unitario USD ajustado de ${item.name}`}
+                                                            />
+                                                            <span className="suffix">USD</span>
+                                                            {item.customPrice && item.basePrice !== item.price && (
+                                                                <button
+                                                                    type="button"
+                                                                    className="reset-price-btn"
+                                                                    onClick={() => resetUnitPrice(item.docId)}
+                                                                    title="Restaurar precio original"
+                                                                >↺</button>
+                                                            )}
+                                                        </label>
+                                                    </div>
+
+                                                    {/* Equivalencia en bolívares del precio unitario */}
+                                                    <small className="price-bs-hint">
+                                                       { formatBs( calculateAmounts(item.price, appSettings.dolarBCV, appSettings.dolarParalelo).bs ) }
+                                                   </small>
                                                 </div>
                                                 <div className="cart-cell quantity" data-label="Cant.">
-                                                  <div
-                                                    className="qty-control"
-                                                    role="group"
-                                                    aria-label={`Cantidad de ${item.name}`}
-                                                  >
-                                                    <button
-                                                      type="button"
-                                                      className="qty-icon"
-                                                      onClick={() => decrementQuantity(item.docId)}
-                                                      aria-label={`Restar 1 a ${item.name}`}
-                                                      disabled={item.quantity <= 1}
-                                                    >−</button>
-                                                    <span
-                                                      className="qty-number"
-                                                      aria-live="polite"
-                                                    >{item.quantity}</span>
-                                                    <button
-                                                      type="button"
-                                                      className="qty-icon"
-                                                      onClick={() => incrementQuantity(item.docId)}
-                                                      aria-label={`Sumar 1 a ${item.name}`}
-                                                      disabled={item.quantity >= item.totalStock}
-                                                    >+</button>
-                                                  </div>
-                                                  <small className="stock-hint">
-                                                    Stock: {item.totalStock - item.quantity}
-                                                  </small>
+                                                    <div
+                                                        className="qty-control"
+                                                        role="group"
+                                                        aria-label={`Cantidad de ${item.name}`}
+                                                    >
+                                                        <button
+                                                            type="button"
+                                                            className="qty-icon"
+                                                            onClick={() => decrementQuantity(item.docId)}
+                                                            aria-label={`Restar 1 a ${item.name}`}
+                                                            disabled={item.quantity <= 1}
+                                                        >−</button>
+                                                        <span className="qty-number" aria-live="polite">{item.quantity}</span>
+                                                        <button
+                                                            type="button"
+                                                            className="qty-icon"
+                                                            onClick={() => incrementQuantity(item.docId)}
+                                                            aria-label={`Sumar 1 a ${item.name}`}
+                                                            disabled={getAvailableForProduct(item.docId, item.quantity) <= 0}
+                                                        >+</button>
+                                                    </div>
+                                                    {(() => {
+                                                        const reserved = getReservedDetails(item.docId);
+                                                        const available = Math.max(0, getAvailableForProduct(item.docId, item.quantity));
+                                                        // detalle en formato "pestaña X: N"
+                                                        const detailParts = reserved.details.map(d => `pestaña ${d.tabId}: ${d.qty}`);
+                                                        const detailStr = detailParts.join(', ');
+                                                        return (
+                                                            <small className="stock-hint">
+                                                                <strong>Stock: {available}</strong>
+                                                                {reserved.total > 0 && (
+                                                                    <>
+                                                                        <br />
+                                                                        <span className="stock-reserved">
+                                                                            Reservado en otras pestañas: {reserved.total}
+                                                                            {detailStr ? ` — (${detailStr})` : ''}
+                                                                        </span>
+                                                                    </>
+                                                                )}
+                                                            </small>
+                                                        );
+                                                    })()}
                                                 </div>
                                                 <div className="cart-cell subtotal" data-label="Subtotal">
                                                     <span>{formatBs(sub.bs)}</span>
@@ -425,9 +739,9 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                                                 </div>
                                                 <div className="cart-cell remove">
                                                     <button
-                                                      onClick={() => handleRemoveProductFromCart(item.docId)}
-                                                      className="remove-btn"
-                                                      aria-label={`Eliminar ${item.name}`}
+                                                        onClick={() => handleRemoveProductFromCart(item.docId)}
+                                                        className="remove-btn"
+                                                        aria-label={`Eliminar ${item.name}`}
                                                     >&times;</button>
                                                 </div>
                                             </div>
@@ -435,18 +749,18 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                                     })}
                                 </div>
                                 {cart.length > 0 && (
-                                  <div className="cart-footer">
-                                    <div className="totals-block">
-                                      <div className="totals-line">
-                                        <span>Total</span>
-                                        <strong>{formatBs(totals.bs)}</strong>
-                                      </div>
-                                      <div className="totals-line alt">≈ {formatUSD(totals.usdAdjusted)}</div>
-                                      <div className="totals-line alt">
-                                        Mixto: ${totals.usdInt} y {formatBs(totals.bsDecimals)}
-                                      </div>
+                                    <div className="cart-footer">
+                                        <div className="totals-block">
+                                            <div className="totals-line">
+                                                <span>Total</span>
+                                                <strong>{formatBs(totals.bs)}</strong>
+                                            </div>
+                                            <div className="totals-line alt">≈ {formatUSD(totals.usdAdjusted)}</div>
+                                            <div className="totals-line alt">
+                                                Mixto: ${totals.usdInt} y {formatBs(totals.bsDecimals)}
+                                            </div>
+                                        </div>
                                     </div>
-                                  </div>
                                 )}
                             </figure>
 
@@ -522,14 +836,14 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                                             </select>
                                         </label>
                                         {cart.length > 0 && (
-                                          <button
-                                            className="confirm-btn"
-                                            onClick={handleConfirmSale}
-                                            disabled={isProcessingSale}
-                                            aria-busy={isProcessingSale}
-                                          >
-                                            {isProcessingSale ? 'Procesando...' : 'Confirmar Venta'}
-                                          </button>
+                                            <button
+                                                className="confirm-btn"
+                                                onClick={handleConfirmSale}
+                                                disabled={isProcessingSale}
+                                                aria-busy={isProcessingSale}
+                                            >
+                                                {isProcessingSale ? 'Procesando...' : 'Confirmar Venta'}
+                                            </button>
                                         )}
                                     </div>
                                 </div>
@@ -551,7 +865,8 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                 activeInventoryId={activeInventoryId}
                 onInventoryChange={handleInventoryChange}
                 appSettings={appSettings}
-                cart={cart} /* NUEVO: pasar carrito para restar stock usado */
+                cart={cart} /* carrito de la pestaña activa */
+                reservedMap={reservedMap} /* reservado por otras pestañas */
             />
         </>
     );

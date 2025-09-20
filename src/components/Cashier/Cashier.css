@@ -1,5 +1,5 @@
 /* ============ TOKENS ============ */
-:root {
+:root{
   --c-bg:#0f1419;
   --c-surface:#16202a;
   --c-surface-alt:#1c2732;
@@ -18,7 +18,7 @@
   color-scheme:dark;
 }
 @media (prefers-color-scheme:light){
-  :root {
+  :root{
     --c-bg:#f5f7fa;
     --c-surface:#ffffff;
     --c-surface-alt:#f0f3f6;
@@ -38,8 +38,8 @@
   max-width:72rem;
   margin:0 auto;
   padding:2rem 1rem 4rem;
+  box-sizing:border-box;
 }
-
 .cashier-header{
   display:flex;
   justify-content:space-between;
@@ -59,459 +59,148 @@
   border-radius:var(--c-radius-sm);
 }
 .inventory-selector-wrapper label{
-  font-size:.75rem;
-  font-weight:600;
-  text-transform:uppercase;
-  letter-spacing:.06em;
-  color:var(--c-text-dim);
-  margin:0;
+  font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--c-text-dim);margin:0;
 }
 .inventory-selector-wrapper select{
-  background:var(--c-surface-alt);
-  border:1px solid var(--c-border-soft);
-  color:var(--c-text);
-  padding:.45rem .65rem;
-  border-radius:var(--c-radius-sm);
-  font-size:.8rem;
+  background:var(--c-surface-alt);border:1px solid var(--c-border-soft);color:var(--c-text);
+  padding:.45rem .65rem;border-radius:var(--c-radius-sm);font-size:.8rem;
 }
-.inventory-selector-wrapper select:focus{
-  outline:none;
-  border-color:var(--c-accent);
-  box-shadow:var(--c-focus);
+.inventory-selector-wrapper select:focus{outline:none;border-color:var(--c-accent);box-shadow:var(--c-focus);}
+
+/* === TABS (fila, compacto) === */
+.cashier-header .tabs-row{
+  display:flex;
+  flex-direction:row;
+  gap:0.35rem;
+  align-items:center;
+  flex-wrap:nowrap;
+  margin:0;
+  padding:0;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+  white-space:nowrap;
 }
+.cashier-header .tabs-row::-webkit-scrollbar{height:8px;}
+.cashier-header .tabs-row::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.12);border-radius:8px;}
+
+.cashier-header .tab-btn{
+  --tab-size: 2.0rem;
+  width: var(--tab-size);
+  height: var(--tab-size);
+  min-width: var(--tab-size);
+  padding: 0;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--c-text-dim);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border-soft);
+  box-shadow: none;
+  transition: background var(--c-transition), border-color var(--c-transition), color var(--c-transition);
+  flex: 0 0 auto;
+}
+.cashier-header .tab-btn.active{
+  background:var(--c-accent);color:#fff;border-color:var(--c-accent);box-shadow:0 4px 12px rgba(37,99,235,0.12);
+}
+.cashier-header .tab-btn:focus-visible{outline:none;box-shadow:var(--c-focus);}
 
 /* ============ CARRITO ============ */
 .cart-area{
-  background:var(--c-surface);
-  border:1px solid var(--c-border);
-  border-radius:var(--c-radius);
-  padding:1rem 1rem .6rem;
-  box-shadow:0 4px 24px -10px rgba(0,0,0,.55);
-  display:flex;
-  flex-direction:column;
-  gap:.85rem;
-  margin-bottom:1.5rem;
+  background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--c-radius);
+  padding:1rem 1rem .6rem;box-shadow:0 4px 24px -10px rgba(0,0,0,.55);
+  display:flex;flex-direction:column;gap:.85rem;margin-bottom:1.5rem;
 }
-
 .cart-header-row{
-  display:grid;
-  grid-template-columns:1.4fr .9fr .9fr .9fr 40px;
-  gap:.75rem;
-  font-size:.68rem;
-  text-transform:uppercase;
-  letter-spacing:.08em;
-  font-weight:600;
-  color:var(--c-text-dim);
-  padding:0 .25rem;
+  display:grid;grid-template-columns:1.4fr .9fr .9fr .9fr 40px;gap:.75rem;
+  font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;font-weight:600;color:var(--c-text-dim);padding:0 .25rem;
 }
-
 .cart-body{display:flex;flex-direction:column;gap:.6rem;}
-.cart-empty{
-  padding:1rem;
-  text-align:center;
-  font-size:.85rem;
-  color:var(--c-text-dim);
-}
+.cart-empty{padding:1rem;text-align:center;font-size:.85rem;color:var(--c-text-dim);}
 
 .cart-row{
-  display:grid;
-  grid-template-columns:1.4fr .9fr .9fr .9fr 40px;
-  gap:.75rem;
-  background:var(--c-surface-alt);
-  border:1px solid var(--c-border-soft);
-  border-radius:var(--c-radius-sm);
-  padding:.85rem .85rem;
-  align-items:center;
-  transition:background var(--c-transition),border-color var(--c-transition);
+  display:grid;grid-template-columns:1.4fr .9fr .9fr .9fr 40px;gap:.75rem;
+  background:var(--c-surface-alt);border:1px solid var(--c-border-soft);border-radius:var(--c-radius-sm);
+  padding:.85rem .85rem;align-items:center;transition:background var(--c-transition),border-color var(--c-transition);
 }
 .cart-row:hover{border-color:var(--c-border);}
-
 .cart-cell{display:flex;flex-direction:column;gap:.25rem;min-width:0;}
 .cart-name{font-weight:600;color:var(--c-text);font-size:.9rem;line-height:1.2;}
-.cart-cell.price span,
-.cart-cell.subtotal span{font-weight:600;font-size:.85rem;}
+.cart-cell.price span,.cart-cell.subtotal span{font-weight:600;font-size:.85rem;}
 .cart-cell small{font-size:.62rem;color:var(--c-text-dim);}
 
-/* ============ CONTROL DE CANTIDAD NUEVO ============ */
+/* ============ CONTROL DE CANTIDAD ============ */
 .cart-cell.quantity{align-items:center;justify-content:center;text-align:center;}
 .qty-control{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  gap:.55rem;
-  padding:.32rem .7rem;
-  background:var(--c-surface-alt);
-  border:1px solid var(--c-border-soft);
-  border-radius:2rem;
-  height:2.45rem;
-  transition:background var(--c-transition),border-color var(--c-transition);
-  position:relative;
+  display:inline-flex;align-items:center;justify-content:center;gap:.55rem;padding:.32rem .7rem;
+  background:var(--c-surface-alt);border:1px solid var(--c-border-soft);border-radius:2rem;height:2.2rem;
+  transition:background var(--c-transition),border-color var(--c-transition);position:relative;
 }
 .qty-control:hover{background:var(--c-surface);border-color:var(--c-border);}
 .qty-control:focus-within{border-color:var(--c-accent);box-shadow:0 0 0 2px rgba(var(--c-accent-rgb)/.35);}
 
 .qty-icon{
-  width:1.95rem;
-  height:1.95rem;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:.95rem;
-  font-weight:600;
-  line-height:1;
-  border-radius:50%;
-  background:var(--c-bg);
-  border:1px solid var(--c-border);
-  color:var(--c-text);
-  cursor:pointer;
+  width:1.9rem;height:1.9rem;display:flex;align-items:center;justify-content:center;font-size:.95rem;font-weight:600;
+  border-radius:50%;background:var(--c-bg);border:1px solid var(--c-border);color:var(--c-text);cursor:pointer;
   transition:background var(--c-transition),border-color var(--c-transition),color var(--c-transition),transform .12s;
 }
-.qty-icon:hover:not(:disabled),
-.qty-icon:focus-visible:not(:disabled){
-  background:var(--c-accent);
-  border-color:var(--c-accent);
-  color:#fff;
-  outline:none;
-}
+.qty-icon:hover:not(:disabled),.qty-icon:focus-visible:not(:disabled){background:var(--c-accent);border-color:var(--c-accent);color:#fff;outline:none;}
 .qty-icon:active:not(:disabled){transform:translateY(1px);}
 .qty-icon:disabled{opacity:.45;cursor:not-allowed;}
 
 .qty-number{
-  min-width:1.7rem;
-  text-align:center;
-  font-weight:600;
-  font-size:.95rem;
-  color:var(--c-text);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  pointer-events:none;
+  min-width:1.6rem;text-align:center;font-weight:600;font-size:.95rem;color:var(--c-text);
+  display:flex;align-items:center;justify-content:center;pointer-events:none;height:1.9rem;
 }
 
-.stock-hint{
-  margin-top:.38rem;
-  font-size:.55rem;
-  color:var(--c-text-dim);
-}
+/* stock hint */
+.stock-hint{margin-top:.38rem;font-size:.62rem;color:var(--c-text-dim);line-height:1.05;}
+.stock-hint .stock-reserved{display:inline-block;margin-top:2px;color:var(--c-text-dim);font-size:.58rem;}
 
-.remove-btn{
-  width:2rem;
-  height:2rem;
-  background:var(--c-surface);
-  border:1px solid var(--c-border);
-  border-radius:10px;
-  color:var(--c-text);
-  font-size:1.05rem;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  cursor:pointer;
-  transition:background var(--c-transition),border-color var(--c-transition),color var(--c-transition);
+/* ============ UNIT PRICE EDITOR ============ */
+.cart-cell.price{position:relative;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:.28rem;padding:0;box-sizing:border-box;}
+.unit-price-row{display:flex;align-items:center;gap:.38rem;width:100%;box-sizing:border-box;}
+.unit-price-editor{display:inline-flex;align-items:center;gap:.36rem;background:var(--c-surface-alt);border:1px solid var(--c-border-soft);border-radius:8px;padding:0 .44rem;height:2.05rem;flex:0 0 auto;box-sizing:border-box;overflow:hidden;}
+.unit-price-editor input[type="text"],.unit-price-editor input[type="number"]{
+  width:4.2rem;max-width:100%;min-width:3.2rem;background:transparent;border:0;padding:0;margin:0;font-size:.95rem;font-weight:700;color:var(--c-text);text-align:right;line-height:1;box-sizing:border-box;outline:none;-webkit-appearance:none;
 }
-.remove-btn:hover,
-.remove-btn:focus-visible{
-  background:var(--c-danger);
-  border-color:var(--c-danger);
-  color:#fff;
-  outline:none;
-}
-
-/* --- FIX: Alineación y margen indeseado en botones de cantidad --- */
-.cart-cell.quantity .qty-control {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: .55rem;
-  height: 2.2rem; /* ajusta si necesitas más alto */
-  padding: .25rem .6rem;
-}
-
-.cart-cell.quantity .qty-control .qty-icon {
-  margin: 0 !important;          /* elimina margin-bottom global */
-  padding: 0;
-  width: 1.9rem;
-  height: 1.9rem;
-  line-height: 1;                 /* evita expansión vertical */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  vertical-align: middle;
-  top: 0;
-  position: relative;
-}
-
-.cart-cell.quantity .qty-control .qty-number {
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.6rem;
-  height: 1.9rem;
-}
-
-/* Si algún framework aplica margin-bottom a todos los botones */
-.cart-cell.quantity button,
-.cart-cell.quantity .qty-icon {
-  margin-bottom: 0 !important;
-}
-
-/* Opcional: versión más compacta en móvil */
-@media (max-width:760px){
-  .cart-cell.quantity .qty-control {
-    height: 2rem;
-    gap: .45rem;
-    padding: .2rem .5rem;
-  }
-  .cart-cell.quantity .qty-control .qty-icon {
-    width: 1.6rem;
-    height: 1.6rem;
-  }
-  .cart-cell.quantity .qty-control .qty-number {
-    height: 1.6rem;
-    min-width: 1.2rem;
-    font-size: .8rem;
-  }
-}
+.unit-price-editor input:focus{box-shadow:none;background:transparent;}
+.unit-price-editor .suffix{font-size:.72rem;color:var(--c-text-dim);user-select:none;flex:0 0 auto;}
+.reset-price-btn{min-width:1.5rem;width:1.5rem;height:1.5rem;padding:0;margin:0;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;background:transparent;border:0;color:var(--c-accent);cursor:pointer;border-radius:6px;}
+.reset-price-btn:hover,.reset-price-btn:focus-visible{background:var(--c-accent);color:#fff;outline:none;}
+.reset-price-btn:focus-visible,.unit-price-editor input:focus-visible{outline:2px solid rgba(0,0,0,0.06);outline-offset:2px;}
 
 /* ============ TOTALES ============ */
-.cart-footer{
-  margin-top:.15rem;
-  padding:.9rem 1rem 1.05rem;
-  background:var(--c-surface-alt);
-  border:1px solid var(--c-border-soft);
-  border-radius:var(--c-radius-sm);
-}
+.cart-footer{margin-top:.15rem;padding:.9rem 1rem 1.05rem;background:var(--c-surface-alt);border:1px solid var(--c-border-soft);border-radius:var(--c-radius-sm);}
 .totals-block{display:flex;flex-direction:column;gap:.32rem;font-size:.72rem;}
 .totals-line{display:flex;justify-content:space-between;gap:1rem;}
 .totals-line strong{font-size:.85rem;}
 .totals-line.alt{color:var(--c-text-dim);font-weight:500;}
 
 /* ============ FORMULARIO CLIENTE / PAGO ============ */
-.customer-form.grid-form{
-  display:grid;
-  grid-template-columns:1.3fr .7fr;
-  gap:1.25rem;
-  background:var(--c-surface);
-  border:1px solid var(--c-border);
-  padding:1.25rem 1.35rem 1.4rem;
-  border-radius:var(--c-radius);
-  box-shadow:0 4px 24px -10px rgba(0,0,0,.45);
-}
-.customer-form .group h3{
-  margin:0 0 .75rem;
-  font-size:.9rem;
-  letter-spacing:.04em;
-  text-transform:uppercase;
-  color:var(--c-text-dim);
-  font-weight:600;
-}
-.customer-form .fields{
-  display:grid;
-  grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:.85rem .9rem;
-}
-.customer-form label{
-  display:flex;
-  flex-direction:column;
-  gap:.35rem;
-  font-size:.68rem;
-  font-weight:600;
-  letter-spacing:.05em;
-  text-transform:uppercase;
-  color:var(--c-text-dim);
-}
-.customer-form label span{display:block;}
-.customer-form input,
-.customer-form select,
-.customer-form textarea{
-  background:var(--c-surface-alt);
-  border:1px solid var(--c-border);
-  border-radius:var(--c-radius-sm);
-  padding:.6rem .75rem;
-  color:var(--c-text);
-  font-size:.8rem;
-  transition:border-color var(--c-transition),background var(--c-transition);
-  resize:vertical;
-  min-height:2.55rem;
-}
+.customer-form.grid-form{display:grid;grid-template-columns:1.3fr .7fr;gap:1.25rem;background:var(--c-surface);border:1px solid var(--c-border);padding:1.25rem 1.35rem 1.4rem;border-radius:var(--c-radius);box-shadow:0 4px 24px -10px rgba(0,0,0,.45);}
+.customer-form .group h3{margin:0 0 .75rem;font-size:.9rem;letter-spacing:.04em;text-transform:uppercase;color:var(--c-text-dim);font-weight:600;}
+.customer-form .fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.85rem .9rem;}
+.customer-form label{display:flex;flex-direction:column;gap:.35rem;font-size:.68rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--c-text-dim);}
+.customer-form input,.customer-form select,.customer-form textarea{background:var(--c-surface-alt);border:1px solid var(--c-border);border-radius:var(--c-radius-sm);padding:.6rem .75rem;color:var(--c-text);font-size:.8rem;transition:border-color var(--c-transition),background var(--c-transition);min-height:2.55rem;}
 .customer-form textarea{min-height:90px;}
-.customer-form input:focus,
-.customer-form select:focus,
-.customer-form textarea:focus{
-  outline:none;
-  border-color:var(--c-accent);
-  box-shadow:var(--c-focus);
-}
-.customer-form .span-2{grid-column:span 2;}
-.group.payment{display:flex;flex-direction:column;gap:.75rem;justify-content:flex-start;}
+.customer-form input:focus,.customer-form select:focus,.customer-form textarea:focus{outline:none;border-color:var(--c-accent);box-shadow:var(--c-focus);}
 
-.confirm-btn{
-  margin-top:auto;
-  background:var(--c-accent);
-  border:1px solid var(--c-accent);
-  color:#fff;
-  padding:.75rem 1.1rem;
-  font-weight:600;
-  border-radius:var(--c-radius-sm);
-  cursor:pointer;
-  transition:background var(--c-transition),box-shadow var(--c-transition);
-  font-size:.85rem;
-}
-.confirm-btn:hover,
-.confirm-btn:focus-visible{background:#1d4fbf;outline:none;}
+/* payment */
+.method-select{display:flex;flex-direction:column;gap:.35rem;width:100%;max-width:340px;}
+.method-select span{font-size:.68rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--c-text-dim);}
+.method-select select{background:var(--c-surface-alt);border:1px solid var(--c-border);border-radius:var(--c-radius-sm);padding:.6rem .75rem;color:var(--c-text);font-size:.8rem;min-height:2.55rem;width:100%;transition:border-color var(--c-transition),background var(--c-transition);}
+.method-select select:focus{outline:none;border-color:var(--c-accent);box-shadow:var(--c-focus);}
+
+.payment-fields{display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap;}
+.payment-fields .confirm-btn{align-self:flex-end;height:2.55rem;padding:0 1.2rem;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;flex:0 0 auto;}
+.confirm-btn{margin-top:0;background:var(--c-accent);border:1px solid var(--c-accent);color:#fff;padding:.75rem 1.1rem;font-weight:600;border-radius:var(--c-radius-sm);cursor:pointer;transition:background var(--c-transition),box-shadow var(--c-transition);font-size:.85rem;}
+.confirm-btn:hover,.confirm-btn:focus-visible{background:#1d4fbf;outline:none;}
 .confirm-btn:disabled{opacity:.55;cursor:progress;}
-
-/* === Pago (nueva distribución) === */
-.payment-fields{
-  display:flex;
-  gap:1rem;
-  align-items:flex-end;
-  flex-wrap:wrap;
-}
-
-.method-select{
-  display:flex;
-  flex-direction:column;
-  gap:.35rem;
-  width:100%;
-  max-width:340px;          /* ancho deseado en desktop, ignora en mobile porque ocupa 100% */
-}
-
-.method-select span{
-  font-size:.68rem;
-  font-weight:600;
-  letter-spacing:.05em;
-  text-transform:uppercase;
-  color:var(--c-text-dim);
-}
-
-.method-select select{
-  background:var(--c-surface-alt);
-  border:1px solid var(--c-border);
-  border-radius:var(--c-radius-sm);
-  padding:.6rem .75rem;
-  color:var(--c-text);
-  font-size:.8rem;
-  min-height:2.55rem;
-  width:100%;
-  transition:border-color var(--c-transition),background var(--c-transition);
-}
-.method-select select:focus{
-  outline:none;
-  border-color:var(--c-accent);
-  box-shadow:var(--c-focus);
-}
-
-.payment-fields .confirm-btn{
-  align-self:flex-end;
-  height:2.55rem;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  white-space:nowrap;
-  flex:0 0 auto;
-  padding:0 1.2rem;
-}
-
-/* Mobile: apilar limpio */
-@media (max-width:700px){
-  .payment-fields{
-    flex-direction:column;
-    align-items:stretch;
-    gap:.85rem;
-  }
-  .payment-fields .confirm-btn{
-    width:100%;
-    height:2.7rem;
-    margin-top:.15rem;
-    margin-top:.85rem !important; /* pequeño respiro */
-  }
-}
-
-/* Elimina regla antigua que forzaba fila y causaba desalineación */
-@media (max-width:900px){
-  .group.payment{
-    flex-direction:column;
-    align-items:stretch;
-    gap:.75rem;
-  }
-  .group.payment h3{
-    margin:0 0 .55rem;
-    font-size:.85rem;
-  }
-  .payment-fields{
-    flex-direction:column;
-    align-items:stretch;
-    gap:.8rem;
-  }
-  .method-select{
-    width:100%;
-  }
-  .payment-fields .confirm-btn{
-    width:100%;
-    min-width:0;
-    margin-top:.15rem;
-    height:2.7rem;
-  }
-}
-
-/* Ajuste extra para pantallas muy pequeñas */
-@media (max-width:430px){
-  .payment-fields .confirm-btn{
-    font-size:.82rem;
-    padding:0 1rem;
-  }
-}
-
-/* === Overrides compactar método de pago en mobile === */
-.method-select {
-  margin: 0 !important;                /* quita margin-bottom heredado */
-  padding: 0 !important;
-  gap: .3rem;
-  line-height: 1.15;
-}
-
-.method-select span {
-  margin: 0 !important;
-  line-height: 1.1;
-}
-
-.method-select select {
-  margin: 0 !important;
-  line-height: 1.1;
-  min-height: 2.35rem;
-  padding: .5rem .7rem;
-}
-
-/* Ajustes específicos mobile */
-@media (max-width:700px){
-  .payment-fields {
-    gap: .55rem;                       /* menos espacio vertical */
-  }
-  .method-select {
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-  .payment-fields .confirm-btn {
-    margin-top: 0 !important;          /* elimina salto entre select y botón */
-  }
-}
-
-/* Extra: si algún framework aplica margin-bottom a todos los label */
-.customer-form label.method-select {
-  margin-bottom: 0 !important;
-}
-
-/* ============ TOAST (reutiliza .app-toast base global) ============ */
-.app-toast-fixed{
-  position:fixed;
-  top:1rem;
-  right:1rem;
-  z-index:var(--layer-toast);
-}
-@media (max-width:640px){
-  .app-toast-fixed{left:.75rem;right:.75rem;max-width:none;}
-}
 
 /* ============ RESPONSIVE ============ */
 @media (max-width:900px){
@@ -519,7 +208,6 @@
   .group.payment{flex-direction:column;align-items:stretch;}
   .confirm-btn{min-width:180px;}
 }
-
 @media (max-width:760px){
   .cart-header-row{display:none;}
   .cart-row{
@@ -532,102 +220,100 @@
   }
   .cart-cell.product{grid-area:product;}
   .cart-cell.price{grid-area:price;}
-  .cart-cell.quantity{grid-area:quantity;}
+  .cart-cell.quantity{grid-area:quantity;align-items:flex-start;justify-content:flex-start;gap:0.18rem;padding-top:0;}
   .cart-cell.subtotal{grid-area:subtotal;}
   .cart-cell.remove{grid-area:remove;align-items:flex-end;}
-  .cart-cell:before{
-    content:attr(data-label);
-    font-size:.55rem;
-    font-weight:600;
-    text-transform:uppercase;
-    color:var(--c-text-dim);
-    letter-spacing:.05em;
-    margin-bottom:.15rem;
-  }
-  .qty-control{
-    height:2.2rem;
-    padding:.25rem .55rem;
-    gap:.45rem;
-  }
-  .qty-icon{
-    width:1.65rem;
-    height:1.65rem;
-    font-size:.8rem;
-  }
-  .qty-number{
-    font-size:.8rem;
-    min-width:1.2rem;
-  }
-  .stock-hint{display:none;}
+  .cart-cell:before{content:attr(data-label);font-size:.55rem;font-weight:600;text-transform:uppercase;color:var(--c-text-dim);letter-spacing:.05em;margin-bottom:.15rem;}
+  .qty-control{height:2rem;padding:.18rem .5rem;gap:.4rem;}
+  .qty-icon{width:1.6rem;height:1.6rem;font-size:.8rem;}
+  .qty-number{font-size:.8rem;min-width:1.2rem;height:1.6rem;}
+  /* show stock hint on mobile, compact */
+  .stock-hint{display:block;font-size:.56rem;margin-top:.2rem;line-height:1;color:var(--c-text-dim);white-space:normal;overflow-wrap:break-word;}
+  .stock-hint strong{display:block;font-weight:700;font-size:.66rem;color:var(--c-text);}
+  .stock-reserved{display:block;font-size:.48rem;color:var(--c-text-dim);margin-top:2px;white-space:normal;word-break:break-word;}
+  .unit-price-row{max-width:100%;flex-shrink:1;}
+  .unit-price-editor{max-width:7.5rem;width:auto;height:1.8rem;padding:0 .32rem;border-radius:6px;}
+  .unit-price-editor input{width:3.2rem;font-size:.88rem;}
+  .cart-row{grid-auto-rows:auto;}
 }
 
-/* ============ FOCUS ACCESIBILIDAD ============ */
-.qty-icon:focus-visible,
-.remove-btn:focus-visible,
-.confirm-btn:focus-visible,
-.inventory-selector-wrapper select:focus-visible{
-  outline:none;
-  box-shadow:var(--c-focus);
-}
-
-/* ==== FIX alto exagerado de .method-select en mobile ==== */
-/* Causa: flex:1 1 220px; convierte 220px en flex-basis (altura) cuando
-   payment-fields pasa a columna. Solución: quitar ese flex y usar
-   tamaños explícitos solo en layout horizontal. */
-
-/* Reemplaza el bloque actual de .method-select (el que tiene flex:1 1 220px;) por: */
-.method-select{
-  display:flex;
-  flex-direction:column;
-  gap:.35rem;
-  width:100%;
-  max-width:340px;          /* ancho deseado en desktop, ignora en mobile porque ocupa 100% */
-}
-
-/* Mantén los estilos de span y select existentes (no toques). */
-
-/* Layout horizontal (desktop) – define el ancho sin afectar altura en mobile */
-@media (min-width:901px){
-  .payment-fields{
-    flex-direction:row;
-    align-items:flex-end;
-    gap:1rem;
-  }
-  .method-select{
-    flex:0 0 240px;          /* fijo en fila horizontal */
-    max-width:240px;
-  }
-}
-
-/* Layout vertical (mobile) – aseguramos que no herede ningún flex-basis */
-@media (max-width:900px){
-  .payment-fields{
-    flex-direction:column;
-    align-items:stretch;
-    gap:.55rem;
-  }
-  .method-select{
-    flex:0 0 auto !important;
-    max-width:100%;
-  }
-}
-
-/* Ajuste extra: compactar el select ligeramente en móvil muy pequeño */
+/* small screens tweaks */
 @media (max-width:480px){
-  .method-select select{
-    min-height:2.3rem;
-    padding:.5rem .65rem;
+  .method-select select{min-height:2.3rem;padding:.5rem .65rem;}
+  .payment-fields .confirm-btn{font-size:.82rem;padding:0 1rem;}
+}
+
+/* focus accessibility */
+.qty-icon:focus-visible,.remove-btn:focus-visible,.confirm-btn:focus-visible,.inventory-selector-wrapper select:focus-visible{outline:none;box-shadow:var(--c-focus);}
+
+/* final safety: ensure tabs are row (override older rules) */
+.cashier-header .tabs-row,.cashier-header .tabs-row > .tab-btn{flex-direction:row;display:flex;}
+
+/* Fix minimal: eliminar sólo el margen inferior indeseado de los botones + / - y del número */
+.qty-control,
+.qty-control > .qty-icon,
+.qty-control > .qty-number {
+  margin-bottom: 0 !important;
+  box-sizing: border-box;
+}
+
+/* Asegurar alineación vertical consistente sin cambiar otras reglas */
+.qty-control .qty-icon,
+.qty-control .qty-number {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  vertical-align: middle !important;
+}
+
+/* Mantener mismo comportamiento en mobile */
+@media (max-width:760px){
+  .qty-control,
+  .qty-control > .qty-icon,
+  .qty-control > .qty-number {
+    margin-bottom: 0 !important;
   }
 }
 
-/* --- Ajuste final: pequeño espacio sobre el botón Confirmar Venta en mobile --- */
-/* Coloca este bloque AL FINAL del archivo para que gane especificidad sobre reglas previas. */
-@media (max-width:900px){
-  .group.payment .payment-fields .confirm-btn{
-    margin-top:1rem !important; /* separa del select */
-  }
+/* Fix: botón "eliminar" compacto y centrado (neutral por defecto, acento al hover/focus) */
+.remove-btn,
+.cart-cell.remove .remove-btn {
+  background: transparent;
+  border: 1px solid var(--c-border-soft);
+  color: var(--c-text-dim);
+  width: 2.1rem;
+  height: 2.1rem;
+  min-width: 2.1rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;            /* cuadrado con esquinas suaves */
+  box-shadow: none;
+  cursor: pointer;
+  transition: background var(--c-transition), border-color var(--c-transition), color var(--c-transition), transform .08s;
 }
-/* Si quieres también evitar que se estire el contenedor por margin-top:auto original: */
-.group.payment .confirm-btn{
-  margin-top:0; /* neutraliza margin-top:auto base */
+
+/* estado hover / focus: color de acento pero discreto */
+.remove-btn:hover,
+.remove-btn:focus-visible {
+  background: var(--c-accent);
+  color: #fff;
+  border-color: var(--c-accent);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+/* asegurar que el contenido (X o SVG) quede perfectamente centrado */
+.remove-btn > * {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-size: 0.95rem;
+}
+
+/* Mobile: tamaños ligeramente menores */
+@media (max-width:760px){
+  .remove-btn { width:1.9rem; height:1.9rem; min-width:1.9rem; border-radius:6px; }
 }

@@ -13,16 +13,17 @@ const DEBOUNCE_MS = 120;
 const BUFFER_ROWS = 6; // filas extra arriba/abajo
 
 function ProductSearchModal({ 
-  isOpen,
-  onClose,
-  onAddProduct,
-  allProducts,
-  inventories,
-  activeInventoryId,
-  onInventoryChange,
-  appSettings,
-  cart /* NUEVO */
-}) {
+   isOpen,
+   onClose,
+   onAddProduct,
+   allProducts,
+   inventories,
+   activeInventoryId,
+   onInventoryChange,
+   appSettings,
+   cart, /* carrito de la pestaña activa */
+   reservedMap = {} /* mapa de reservas por otras pestañas: { docId: qty } */
+ }) {
   const [rawSearch, setRawSearch] = useState('');
   const [search, setSearch] = useState('');
   const [focusIndex, setFocusIndex] = useState(-1);
@@ -90,21 +91,22 @@ function ProductSearchModal({
     return m;
   }, [cart]);
 
-  // Productos + stock (restando lo ya en carrito)
+  // Productos + stock (restando lo ya en carrito y lo reservado en otras pestañas)
   const productsWithStock = useMemo(() => {
     if (!allProducts?.length) return [];
     return allProducts.map(p => {
       const key = p.docId || p.id;
       const invStock = Number(inventoryProductMap?.[key]?.quantity) || 0;
       const inCart = Number(cartQtyMap[key]) || 0;
-      const remaining = Math.max(0, invStock - inCart);
+      const reservedInOthers = Number(reservedMap[key]) || 0;
+      const remaining = Math.max(0, invStock - inCart - reservedInOthers);
       return { 
         ...p, 
         stock: remaining,          // stock restante disponible para añadir
         originalStock: invStock    // stock original del inventario (constante para validaciones en Cashier)
       };
     });
-  }, [allProducts, inventoryProductMap, cartQtyMap]);
+  }, [allProducts, inventoryProductMap, cartQtyMap, reservedMap]);
 
   // Ajuste precio
   const adjustUSD = useCallback((originalPriceUSD) => {
@@ -202,34 +204,22 @@ function ProductSearchModal({
   const startOffset = startIndex * rowHeight;
   const endOffset = (total - endIndex) * rowHeight;
 
-  // Navegación teclado
-  const moveFocus = (dir) => {
-    if (!filtered.length) return;
-    setFocusIndex(prev => {
-      let next = prev + dir;
-      if (next < 0) next = filtered.length - 1;
-      if (next >= filtered.length) next = 0;
-      return next;
-    });
-  };
+  // // Navegación teclado
+  // const moveFocus = (dir) => {
+  //   if (!filtered.length) return;
+  //   setFocusIndex(prev => {
+  //     let next = prev + dir;
+  //     if (next < 0) next = filtered.length - 1;
+  //     if (next >= filtered.length) next = 0;
+  //     return next;
+  //   });
+  // };
 
   const showModalNotice = useCallback((message, type = 'error', ms = 2600) => {
     setModalNotice({ message, type });
     if (showModalNotice._t) clearTimeout(showModalNotice._t);
     showModalNotice._t = setTimeout(() => setModalNotice(null), ms);
   }, []);
-
-  // Modifica el keydown global: ignora cuando el diálogo de cantidad está abierto
-  const handleKeyDownGlobal = (e) => {
-    if (!isOpen || qtyDialog) return; // <-- añadido qtyDialog guard
-    if (['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) e.preventDefault();
-    if (e.key === 'ArrowDown') moveFocus(1);
-    else if (e.key === 'ArrowUp') moveFocus(-1);
-    else if (e.key === 'Enter' && focusIndex >= 0) {
-      const item = filtered[focusIndex];
-      if (item) attemptSelect(item);
-    }
-  };
 
   // Guard reentrante para confirmar
   const confirmingRef = useRef(false);
@@ -346,8 +336,6 @@ function ProductSearchModal({
   };
 
   if (!isOpen) return null;
-
-  const totalHeight = total * rowHeight;
 
   return (
     <div
@@ -481,6 +469,9 @@ function ProductSearchModal({
 
             {visibleSlice.map(({ product, index }) => {
               const adjusted = adjustUSD(product.price);
+             const bcvRate = Number(appSettings?.dolarBCV) || 1;
+             const adjustedBsValue = adjusted * bcvRate;
+             const adjustedBsLabel = `${Math.max(0, Math.round(adjustedBsValue)).toLocaleString('es-VE')} Bs.`;
               const focused = index === focusIndex;
               return (
                 <ProductRow
@@ -489,6 +480,7 @@ function ProductSearchModal({
                   focused={focused}
                   product={product}
                   adjusted={adjusted}
+                  adjustedBsLabel={adjustedBsLabel}
                   onSelect={() => attemptSelect(product)}
                 />
               );
@@ -513,6 +505,7 @@ const ProductRow = React.memo(function ProductRow({
   product,
   adjusted,
   focused,
+  adjustedBsLabel,
   onSelect,
   index
 }) {
@@ -560,6 +553,10 @@ const ProductRow = React.memo(function ProductRow({
         <div className="lps-line2">
           <span className="lps-id">ID: {product.id}</span>
           <span className="lps-stock">Stock: {product.stock}</span>
+          {/* equivalencia en Bs del precio ajustado */}
+          <span className="lps-price-bs" aria-hidden="true" style={{ marginLeft: '0.6rem', color: 'var(--c-text-dim)', fontSize: '0.86rem' }}>
+            {adjustedBsLabel}
+          </span>
         </div>
       </div>
     </div>
