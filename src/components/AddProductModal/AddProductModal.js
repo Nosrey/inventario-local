@@ -193,7 +193,7 @@ function AddProductModal({ isOpen, onClose, onAddProduct, onDeleteProduct, inven
       <dialog open>
         <article>
           <header>
-            <a href="#close" aria-label="Close" className="close" onClick={() => setIsNewBrandModalOpen(false)}></a>
+            <button type="button" aria-label="Close" className="close" onClick={() => setIsNewBrandModalOpen(false)}></button>
             <h3>Crear Nueva Marca</h3>
           </header>
           <form onSubmit={handleCreateNewBrand}>
@@ -225,7 +225,7 @@ function AddProductModal({ isOpen, onClose, onAddProduct, onDeleteProduct, inven
       <dialog open>
         <article>
           <header>
-            <a href="#close" aria-label="Close" className="close" onClick={() => setIsNewInventoryModalOpen(false)}></a>
+            <button type="button" aria-label="Close" className="close" onClick={() => setIsNewInventoryModalOpen(false)}></button>
             <h3>Crear Nuevo Inventario</h3>
           </header>
           <form onSubmit={handleCreateNewInventory}>
@@ -278,7 +278,7 @@ function AddProductModal({ isOpen, onClose, onAddProduct, onDeleteProduct, inven
     <dialog open>
       <article className="inv-modal">
         <header>
-          <a href="#close" aria-label="Close" className="close" onClick={onClose}></a>
+          <button type="button" aria-label="Close" className="close" onClick={onClose}></button>
           <h3>{isEditMode ? 'Editar Producto' : 'Añadir Nuevo Producto'}</h3>
         </header>
         <form onSubmit={handleSubmit}>

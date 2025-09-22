@@ -34,6 +34,9 @@ function Settings({ user }) {
     const [error, setError] = useState(null);
     const [notification, setNotification] = useState({ message: '', type: '' });
 
+    // Nivel de acceso del usuario (por defecto 1)
+    const [accessLevel, setAccessLevel] = useState(1);
+    
     // Efecto para cargar todos los datos al iniciar
     useEffect(() => {
         const fetchData = async () => {
@@ -48,6 +51,8 @@ function Settings({ user }) {
                     setUsername(data.username || '');
                     setLastEdited(prev => ({ ...prev, username: data.usernameLastEdited?.toDate() }));
                     originalData.current.username = data.username || '';
+                   // leer accessLevel (fallback a 1)
+                   setAccessLevel(typeof data.accessLevel === 'number' ? data.accessLevel : 1);
                 }
 
                 // Cargar configuración de la aplicación
@@ -189,36 +194,42 @@ function Settings({ user }) {
                         </article>
                     </form>
 
-                    <form onSubmit={handleSettingsSave}>
-                        <article>
-                            <hgroup>
-                                <h2>Configuración de la Aplicación</h2>
-                                <h3>Define las tasas de cambio de referencia.</h3>
-                            </hgroup>
-                            
-                            <div className="grid">
-                                <div>
-                                    <label htmlFor="dolarBCV">Dólar BCV</label>
-                                    <input type="number" id="dolarBCV" name="dolarBCV" placeholder="0.00" value={appSettings.dolarBCV} onChange={handleSettingsChange} step="any" />
-                                    {lastEdited.dolarBCV && <small>Última actualización: {lastEdited.dolarBCV.toLocaleString()}</small>}
-                                </div>
-                                <div>
-                                    <label htmlFor="dolarParalelo">Dólar Paralelo</label>
-                                    <input type="number" id="dolarParalelo" name="dolarParalelo" placeholder="0.00" value={appSettings.dolarParalelo} onChange={handleSettingsChange} step="any" />
-                                    {lastEdited.dolarParalelo && <small>Última actualización: {lastEdited.dolarParalelo.toLocaleString()}</small>}
-                                </div>
-                                <div>
-                                    <label htmlFor="dolarMercadoNegro">Dólar Mercado Negro</label>
-                                    <input type="number" id="dolarMercadoNegro" name="dolarMercadoNegro" placeholder="0.00" value={appSettings.dolarMercadoNegro} onChange={handleSettingsChange} step="any" />
-                                    {lastEdited.dolarMercadoNegro && <small>Última actualización: {lastEdited.dolarMercadoNegro.toLocaleString()}</small>}
-                                </div>
-                            </div>
-                            
-                            <button type="submit" aria-busy={isSavingSettings}>{isSavingSettings ? 'Guardando...' : 'Guardar Cambios'}</button>
-                        </article>
-                    </form>
+                    {/* Mostrar sección de Configuración de la Aplicación solo si accessLevel >= 3 */}
+                    {accessLevel >= 3 && (
+                      <form onSubmit={handleSettingsSave}>
+                          <article>
+                              <hgroup>
+                                  <h2>Configuración de la Aplicación</h2>
+                                  <h3>Define las tasas de cambio de referencia.</h3>
+                              </hgroup>
+                              
+                              <div className="grid">
+                                  <div>
+                                      <label htmlFor="dolarBCV">Dólar BCV</label>
+                                      <input type="number" id="dolarBCV" name="dolarBCV" placeholder="0.00" value={appSettings.dolarBCV} onChange={handleSettingsChange} step="any" />
+                                      {lastEdited.dolarBCV && <small>Última actualización: {lastEdited.dolarBCV.toLocaleString()}</small>}
+                                  </div>
+                                  <div>
+                                      <label htmlFor="dolarParalelo">Dólar Paralelo</label>
+                                      <input type="number" id="dolarParalelo" name="dolarParalelo" placeholder="0.00" value={appSettings.dolarParalelo} onChange={handleSettingsChange} step="any" />
+                                      {lastEdited.dolarParalelo && <small>Última actualización: {lastEdited.dolarParalelo.toLocaleString()}</small>}
+                                  </div>
+                                  <div>
+                                      <label htmlFor="dolarMercadoNegro">Dólar Mercado Negro</label>
+                                      <input type="number" id="dolarMercadoNegro" name="dolarMercadoNegro" placeholder="0.00" value={appSettings.dolarMercadoNegro} onChange={handleSettingsChange} step="any" />
+                                      {lastEdited.dolarMercadoNegro && <small>Última actualización: {lastEdited.dolarMercadoNegro.toLocaleString()}</small>}
+                                  </div>
+                              </div>
+                              
+                              <button type="submit" aria-busy={isSavingSettings}>{isSavingSettings ? 'Guardando...' : 'Guardar Cambios'}</button>
+                          </article>
+                      </form>
+                    )}
 
-                    <ExcelImporter onImportComplete={handleImportComplete} />
+                    {/* Mostrar Importador solo si accessLevel >= 4 */}
+                    {accessLevel >= 4 && (
+                      <ExcelImporter onImportComplete={handleImportComplete} />
+                    )}
                 </>
             )}
         </section>

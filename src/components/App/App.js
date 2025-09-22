@@ -12,7 +12,8 @@ function App({ user, onLogout, initialActiveInventoryId }) {
     <>
       <Navbar 
         title="Inventario de Productos" 
-        rightContent={user.email} 
+        rightContent={user?.email}
+        user={user}                        // <-- pasamos user para que Navbar lea accessLevel
         onLogout={onLogout} 
       />
       <main
@@ -26,7 +27,7 @@ function App({ user, onLogout, initialActiveInventoryId }) {
         <section className="card" style={{ padding: '0rem' }}>
           <Switch>
             <Route exact path="/">
-              <Redirect to="/inventory" />
+              <Redirect to="/cashier" />
             </Route>
             <Route path="/inventory">
               <Inventory user={user} />

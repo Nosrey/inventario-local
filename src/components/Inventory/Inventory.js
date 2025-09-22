@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, setDoc, writeBatch, runTransaction, deleteDoc, deleteField } from 'firebase/firestore';
+import { doc, setDoc, writeBatch, runTransaction, deleteDoc, deleteField, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase.js';
 import { useData } from '../../context/DataProvider.jsx';
 import AddProductButton from '../AddProductButton/AddProductButton.js';
@@ -79,14 +79,14 @@ function Inventory({ user }) {
       };
 
       if (docId) {
-        // EDITAR PRODUCTO (lógica existente)
-        await setDoc(doc(db, 'products', docId), payload, { merge: true });
+        // EDITAR PRODUCTO (incluye updatedAt)
+        await setDoc(doc(db, 'products', docId), { ...payload, updatedAt: serverTimestamp() }, { merge: true });
 
         const batch = writeBatch(db);
         for (const iq of targetInvs) {
           const q = toInt(iq.quantity);
           const invRef = doc(db, 'inventories', iq.inventoryId);
-          batch.set(invRef, { products: { [docId]: { quantity: q } } }, { merge: true });
+          batch.set(invRef, { products: { [docId]: { quantity: q } }, updatedAt: serverTimestamp() }, { merge: true });
         }
         await batch.commit();
 
@@ -111,7 +111,7 @@ function Inventory({ user }) {
 
         // 2. Crear el nuevo producto con el ID del contador
         const newProductRef = doc(db, 'products', String(newProductId));
-        await setDoc(newProductRef, { ...payload, id: newProductId });
+        await setDoc(newProductRef, { ...payload, id: newProductId, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 
         // 3. Asignar cantidades a inventarios
         const batch = writeBatch(db);
@@ -119,7 +119,7 @@ function Inventory({ user }) {
           const q = toInt(iq.quantity);
           if (q > 0) {
             const invRef = doc(db, 'inventories', iq.inventoryId);
-            batch.set(invRef, { products: { [newProductRef.id]: { quantity: q } } }, { merge: true });
+            batch.set(invRef, { products: { [newProductRef.id]: { quantity: q } }, updatedAt: serverTimestamp() }, { merge: true });
           }
         }
         await batch.commit();
@@ -148,7 +148,7 @@ function Inventory({ user }) {
       const batch = writeBatch(db);
       inventories.forEach(inv => {
         const invRef = doc(db, 'inventories', inv.id);
-        batch.update(invRef, { [`products.${productDocId}`]: deleteField() });
+        batch.update(invRef, { [`products.${productDocId}`]: deleteField(), updatedAt: serverTimestamp() });
       });
       await batch.commit();
     } catch (err) {

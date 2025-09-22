@@ -5,9 +5,14 @@ import { HashRouter } from 'react-router-dom';
 import App from './components/App/App.js';
 import Auth from './components/Auth/Auth.js';
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
-import { app } from './firebase.js';
+import { doc, getDoc, setDoc, serverTimestamp, /* ... */ getDocFromServer } from 'firebase/firestore';
+import { app, db } from './firebase.js'; // usar instancia compartida con cache persistente
 import { DataProvider } from './context/DataProvider.jsx';
+
+// Añadidos: instancia de auth y claves de localStorage usadas abajo
+const auth = getAuth(app);
+const lsKey = 'activeInventoryId';
+const lsValue = typeof window !== 'undefined' ? localStorage.getItem(lsKey) : null;
 
 function Root() {
   const [user, setUser] = useState(null);
@@ -16,23 +21,25 @@ function Root() {
   const [activeInventoryId, setActiveInventoryId] = useState(null); // NUEVO
 
   useEffect(() => {
-    const auth = getAuth(app);
-    const db = getFirestore(app);
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setAuthError('');
       if (currentUser) {
-        const lsKey = `activeInventory:${currentUser.uid}`;
-        const lsValue = localStorage.getItem(lsKey);
         if (lsValue) {
           setActiveInventoryId(lsValue); // Fallback inmediato
         }
 
         const userDocRef = doc(db, 'users', currentUser.uid);
-        const userDoc = await getDoc(userDocRef);
+        // FORZAR lectura desde el servidor para asegurar estado "activate" actualizado
+        let userDocSnapshot;
+        try {
+          userDocSnapshot = await getDocFromServer(userDocRef);
+        } catch (serverErr) {
+          // fallback (cache / online) si getDocFromServer no está disponible o falla
+          userDocSnapshot = await getDoc(userDocRef);
+        }
 
-        if (userDoc.exists()) {
-          const data = userDoc.data();
+        if (userDocSnapshot?.exists()) {
+          const data = userDocSnapshot.data();
           if (data.activate === true) {
             setUser(currentUser);
             if (data.activeInventory) {
@@ -51,6 +58,7 @@ function Root() {
             createdAt: new Date(),
             email: currentUser.email,
             uid: currentUser.uid,
+            accessLevel: 1, // nuevo: valor por defecto
           });
           setAuthError('REGISTRATION_SUCCESS');
           await signOut(auth);

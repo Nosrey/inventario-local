@@ -471,7 +471,10 @@ function ProductSearchModal({
               const adjusted = adjustUSD(product.price);
              const bcvRate = Number(appSettings?.dolarBCV) || 1;
              const adjustedBsValue = adjusted * bcvRate;
-             const adjustedBsLabel = `${Math.max(0, Math.round(adjustedBsValue)).toLocaleString('es-VE')} Bs.`;
+             // redondear hacia arriba al siguiente múltiplo de 10 para mostrar en Bs
+             const adjustedBsRaw = Math.max(0, Math.round(adjustedBsValue));
+             const adjustedBsRounded10 = Math.ceil(adjustedBsRaw / 10) * 10;
+             const adjustedBsLabel = `${adjustedBsRounded10.toLocaleString('es-VE')} Bs.`;
               const focused = index === focusIndex;
               return (
                 <ProductRow

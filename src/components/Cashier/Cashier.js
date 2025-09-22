@@ -6,7 +6,7 @@ import ProductSearchModal from './ProductSearchModal/ProductSearchModal.js';
 import AddProductButton from '../AddProductButton/AddProductButton.js';
 import './Cashier.css';
 
-// 1. Función de cálculo de precios con la nueva salida (Bs, USD con decimales y mixto)
+// 1. Función de cálculo de precios con la nueva salida (Bs redondeado hacia arriba a múltiplo de 10)
 const calculateAmounts = (amountUSD, bcvRate, paraleloRate) => {
     const safe = (n) => (typeof n === 'number' && isFinite(n) ? n : 0);
     const usd = safe(amountUSD);
@@ -18,12 +18,16 @@ const calculateAmounts = (amountUSD, bcvRate, paraleloRate) => {
     }
 
     const precioBsExact = usd * par;     // USD -> Bs (paralelo)
-    const bs = Math.ceil(precioBsExact); // Redondeo hacia arriba
+    // redondeo normal primero (como antes)
+    const bsRaw = Math.ceil(precioBsExact);
+    // NUEVO: redondear hacia arriba al siguiente múltiplo de 10
+    const bsRounded10 = Math.ceil(bsRaw / 10) * 10;
+
     const usdAdjusted = precioBsExact / bcv; // Bs -> USD (BCV)
     const usdInt = Math.floor(usdAdjusted);
     const bsDecimals = Math.ceil((usdAdjusted - usdInt) * bcv);
 
-    return { bs, usdAdjusted, usdInt, bsDecimals };
+    return { bs: bsRounded10, usdAdjusted, usdInt, bsDecimals };
 };
 
 const formatUSD = (v) =>
@@ -35,7 +39,14 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
     const { loading, products, inventories, settings } = useData();
     const [activeInventoryId, setActiveInventoryId] = useState(null);
     // PESTAÑAS: 9 pestañas desplegadas por defecto (1..9)
-    const initialTabs = Array.from({ length: 9 }, (_, i) => ({ id: String(i + 1), name: String(i + 1), cart: [] }));
+    const defaultCustomer = { name: '', phone: '', id: '', address: '', notes: '' };
+    const initialTabs = Array.from({ length: 9 }, (_, i) => ({
+        id: String(i + 1),
+        name: String(i + 1),
+        cart: [],
+        customer: { ...defaultCustomer },
+        paymentMethod: ''
+    }));
     const [tabs, setTabs] = useState(() => initialTabs);
     const [activeTabId, setActiveTabId] = useState('1');
     // Helper: carrito actual derivado de tabs
@@ -71,8 +82,25 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
     const [notification, setNotification] = useState({ message: '', type: '' });
     const [isProcessingSale, setIsProcessingSale] = useState(false);
     const [appSettings, setAppSettings] = useState({ dolarBCV: 0, dolarParalelo: 0 });
-    const [customer, setCustomer] = useState({ name: '', phone: '', id: '', address: '', notes: '' });
-    const [paymentMethod, setPaymentMethod] = useState('');
+    // helpers para datos por pestaña (cliente y método de pago)
+    const getActiveTab = () => tabs.find(t => t.id === activeTabId) || null;
+    const activeCustomer = getActiveTab()?.customer ?? defaultCustomer;
+    const activePaymentMethod = getActiveTab()?.paymentMethod ?? '';
+
+    const setActiveTabCustomer = (updater) => {
+        setTabs(prev => prev.map(t => t.id === activeTabId ? {
+            ...t,
+            customer: typeof updater === 'function' ? updater(t.customer ?? defaultCustomer) : updater
+        } : t));
+    };
+
+    const setActiveTabPaymentMethod = (valOrUpdater) => {
+        setTabs(prev => prev.map(t => t.id === activeTabId ? {
+            ...t,
+            paymentMethod: typeof valOrUpdater === 'function' ? valOrUpdater(t.paymentMethod ?? '') : valOrUpdater
+        } : t));
+    };
+
     const userInteractedRef = useRef(false); // NUEVO: evita sobreescritura tras interacción del usuario
 
     // Estado temporal para editar el USD ajustado en el input sin formateos forzados
@@ -91,6 +119,186 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
       });
     };
 
+    // --- NUEVO: caché local + reconciliación con stock al cargar ---
+    // Devuelve prioridad de claves a probar (primero user, luego anon)
+    const makeCacheKeys = () => {
+        const keys = [];
+        if (user?.uid) keys.push(`cashier:state:${user.uid}`);
+        keys.push('cashier:state:anon');
+        return keys;
+    };
+    const loadedFromCacheRef = useRef(false);
+
+    const reconcileTabsWithStock = (tabsToRecon, invId) => {
+      const inv = inventories.find(i => i.id === invId) || inventories[0];
+      if (!inv) return { tabs: tabsToRecon, adjustments: [] };
+
+      // clone tabs
+      const clone = tabsToRecon.map(t => ({ ...t, cart: (t.cart || []).map(i => ({ ...i })) }));
+      const activeIdx = clone.findIndex(t => t.id === activeTabId) !== -1 ? clone.findIndex(t => t.id === activeTabId) : 0;
+      const activeTab = clone[activeIdx];
+
+      // collect product ids present in any tab
+      const allPids = new Set();
+      for (const t of clone) for (const it of t.cart || []) if (it?.docId) allPids.add(it.docId);
+
+      const adjustments = [];
+
+      for (const pid of allPids) {
+        const totalStock = Number(inv.products?.[pid]?.quantity) || 0;
+        const desiredActive = Number((activeTab.cart.find(i => i.docId === pid) || { quantity: 0 }).quantity) || 0;
+
+        // If active desires more than totalStock, cap active and zero others
+        if (desiredActive >= totalStock) {
+          const newActiveQty = Math.min(desiredActive, totalStock);
+          if (newActiveQty !== desiredActive) {
+            const item = activeTab.cart.find(i => i.docId === pid);
+            if (item) {
+              adjustments.push(`${item.name || pid} (pestaña ${activeTab.id}): ${desiredActive}→${newActiveQty}`);
+              item.quantity = newActiveQty;
+            }
+          }
+          // zero others
+          for (const t of clone) {
+            if (t.id === activeTab.id) continue;
+            const it = t.cart.find(i => i.docId === pid);
+            if (it && Number(it.quantity) > 0) {
+              adjustments.push(`${it.name || pid} (pestaña ${t.id}): ${it.quantity}→0`);
+              it.quantity = 0;
+            }
+          }
+        } else {
+          // keep active desired, distribute remaining to other tabs in ascending order
+          let remaining = totalStock - desiredActive;
+          for (const t of clone.filter(t => t.id !== activeTab.id).sort((a,b) => Number(a.id) - Number(b.id))) {
+            const it = t.cart.find(i => i.docId === pid);
+            if (!it) continue;
+            const old = Number(it.quantity) || 0;
+            const allowed = Math.min(old, remaining);
+            if (old !== allowed) {
+              adjustments.push(`${it.name || pid} (pestaña ${t.id}): ${old}→${allowed}`);
+              it.quantity = allowed;
+            }
+            remaining = Math.max(0, remaining - allowed);
+          }
+        }
+      }
+
+      return { tabs: clone, adjustments };
+    };
+
+        // --- Versión mejorada de carga de cache en dos fases ---
+        // 1) carga rápida al montar para restaurar inmediatamente tras F5 (no depende de inventories)
+        // 2) cuando inventories esté disponible, hacer reconciliación inteligente con stock y aplicar ajustes
+        const quickLoadedRef = useRef(false);
+
+        useEffect(() => {
+            if (quickLoadedRef.current) return;
+            try {
+                // intentamos leer anon y user (si existe); priorizamos user si está presente
+                const keys = [];
+                if (user?.uid) keys.push(`cashier:state:${user.uid}`);
+                keys.push('cashier:state:anon');
+
+                let raw = null;
+                for (const k of keys) {
+                    const r = localStorage.getItem(k);
+                    if (r) { raw = r; break; }
+                }
+                if (!raw) { quickLoadedRef.current = true; return; }
+                const parsed = JSON.parse(raw);
+                if (!parsed || !Array.isArray(parsed.tabs)) { quickLoadedRef.current = true; return; }
+
+                // Normalizar/llenar tabs faltantes (asegura 9 pestañas con ids 1..9)
+                const cachedTabs = Array.from({ length: 9 }, (_, i) => {
+                    const found = parsed.tabs.find(t => t.id === String(i+1));
+                    return found ? { id: String(i+1), name: String(i+1), cart: (found.cart || []).map(it => ({ ...it })) , customer: found.customer || { name: '', phone: '', id: '', address: '', notes: '' }, paymentMethod: found.paymentMethod || '' } : { id: String(i+1), name: String(i+1), cart: [], customer: { name: '', phone: '', id: '', address: '', notes: '' }, paymentMethod: '' };
+                });
+
+                // Aplicar inmediatamente los tabs recuperados para que la UI muestre la sesión restaurada
+                setTabs(cachedTabs);
+
+                // Restaurar activeTabId (si viene en payload)
+                if (parsed.activeTabId && typeof parsed.activeTabId === 'string') {
+                    setActiveTabId(parsed.activeTabId);
+                }
+                // Restaurar activeInventoryId si existe (no validamos aún contra inventories)
+                if (parsed.activeInventoryId && typeof parsed.activeInventoryId === 'string') {
+                    setActiveInventoryId(parsed.activeInventoryId);
+                }
+            } catch (err) {
+                console.warn('Error al cargar cache (rápido) de cashier:', err);
+            } finally {
+                quickLoadedRef.current = true;
+            }
+        }, []); // ejecutar sólo al montar
+
+        // segunda fase: cuando inventories o user estén disponibles, reconciliar con stock y aplicar ajustes definitivos
+        useEffect(() => {
+            if (loadedFromCacheRef.current) return;
+            if (!inventories.length) return;
+            const keys = makeCacheKeys();
+            try {
+                let raw = null;
+                let usedKey = null;
+                for (const k of keys) {
+                    const r = localStorage.getItem(k);
+                    if (r) { raw = r; usedKey = k; break; }
+                }
+                if (!raw) { loadedFromCacheRef.current = true; return; }
+                const parsed = JSON.parse(raw);
+                if (!parsed || !Array.isArray(parsed.tabs)) { loadedFromCacheRef.current = true; return; }
+
+                // Normalizar/llenar tabs faltantes (asegura 9 pestañas con ids 1..9)
+                const cachedTabs = Array.from({ length: 9 }, (_, i) => {
+                    const found = parsed.tabs.find(t => t.id === String(i+1));
+                    return found ? { id: String(i+1), name: String(i+1), cart: (found.cart || []).map(it => ({ ...it })) , customer: found.customer || { name: '', phone: '', id: '', address: '', notes: '' }, paymentMethod: found.paymentMethod || '' } : { id: String(i+1), name: String(i+1), cart: [], customer: { name: '', phone: '', id: '', address: '', notes: '' }, paymentMethod: '' };
+                });
+
+                // Restablecer activeInventoryId y activeTabId si son válidos
+                if (parsed.activeInventoryId && inventories.some(i => i.id === parsed.activeInventoryId)) {
+                    setActiveInventoryId(parsed.activeInventoryId);
+                }
+                if (parsed.activeTabId && typeof parsed.activeTabId === 'string') {
+                    setActiveTabId(parsed.activeTabId);
+                }
+
+                // Reconciliar cantidades con stock actual
+                const invIdToUse = parsed.activeInventoryId && inventories.some(i=>i.id===parsed.activeInventoryId) ? parsed.activeInventoryId : (inventories[0]?.id || null);
+                const { tabs: adjustedTabs, adjustments } = reconcileTabsWithStock(cachedTabs, invIdToUse);
+                setTabs(adjustedTabs);
+                if (adjustments.length) {
+                    const short = adjustments.slice(0, 6).join(', ');
+                    const msg = `Se ajustaron cantidades al restaurar la sesión: ${short}${adjustments.length > 6 ? '…' : ''}`;
+                    showNotification(msg, 'info', 7000);
+                }
+            } catch (err) {
+                console.warn('Error al cargar cache de cashier (reconciliación):', err);
+            } finally {
+                loadedFromCacheRef.current = true;
+            }
+        }, [inventories, user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Persistir cache cuando cambien tabs / inventario activo / pestaña activa
+    useEffect(() => {
+      try {
+        const payload = {
+          tabs,
+          activeInventoryId,
+          activeTabId,
+          savedAt: Date.now()
+        };
+        // Guardar preferente en clave de user (si existe) y siempre actualizar la clave anon como fallback
+        if (user?.uid) {
+          localStorage.setItem(`cashier:state:${user.uid}`, JSON.stringify(payload));
+        }
+        // Mantener copia anon para recuperaciones rápidas (F5 sin auth resuelta)
+        localStorage.setItem('cashier:state:anon', JSON.stringify(payload));
+      } catch (err) {
+        console.warn('No se pudo guardar cache de cashier:', err);
+      }
+    }, [tabs, activeInventoryId, activeTabId, user?.uid]);
+    
     // Mantener settings locales (para no romper dependencias de cálculo)
     React.useEffect(() => {
         setAppSettings({
@@ -301,7 +509,7 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
     const handleConfirmSale = async () => {
         if (cart.length === 0) { showNotification("El carrito está vacío.", 'error'); return; }
         if (!activeInventoryId) { showNotification("No hay un inventario seleccionado.", 'error'); return; }
-        if (!paymentMethod) { showNotification("Selecciona un método de pago.", 'error'); return; }
+        if (!activePaymentMethod) { showNotification("Selecciona un método de pago.", 'error'); return; }
 
         setIsProcessingSale(true);
         const inventoryDocRef = doc(db, 'inventories', activeInventoryId);
@@ -421,8 +629,8 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                 userId: user?.uid || null,
                 inventoryId: activeInventoryId,
                 inventoryName: activeInventoryName,
-                customer: { ...customer },
-                paymentMethod,
+                customer: { ...(activeCustomer || defaultCustomer) },
+                paymentMethod: activePaymentMethod,
                 items,
                 totals: {
                     bs: Math.max(0, Math.round(totals.bs)),
@@ -437,8 +645,8 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
             showNotification("Venta realizada con éxito.", 'success');
             // Vaciar sólo la pestaña activa
             setCurrentTabCart([]);
-            setCustomer({ name: '', phone: '', id: '', address: '', notes: '' });
-            setPaymentMethod('');
+            setActiveTabCustomer({ ...defaultCustomer });
+            setActiveTabPaymentMethod('');
         } catch (err) {
             console.error('Error al procesar la venta:', err);
             setError(err?.message || 'No se pudo completar la venta.');
@@ -449,10 +657,30 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
     };
 
     const cartTotal = useMemo(() => cart.reduce((t, i) => t + (i.price * i.quantity), 0), [cart]);
-    const totals = useMemo(
-        () => calculateAmounts(cartTotal, appSettings.dolarBCV, appSettings.dolarParalelo),
-        [cartTotal, appSettings.dolarBCV, appSettings.dolarParalelo]
-    );
+    const totals = useMemo(() => {
+        const calc = (usd) => calculateAmounts(usd, appSettings.dolarBCV, appSettings.dolarParalelo);
+        const totalsFromUsd = calc(cartTotal); // mantiene USD igual que antes
+
+        // SUMAR los Bs por línea usando el subtotal ya redondeado por línea (pre-suma)
+        const sumBs = cart.reduce((s, item) => {
+            const subtotalUSD = (Number(item.price) || 0) * (Number(item.quantity) || 0);
+            const sub = calc(subtotalUSD);
+            return s + (Number(sub.bs) || 0);
+        }, 0);
+
+        // sumar bsDecimals por línea (mantener consistencia si se usa)
+        const sumBsDecimals = cart.reduce((s, item) => {
+            const subtotalUSD = (Number(item.price) || 0) * (Number(item.quantity) || 0);
+            const sub = calc(subtotalUSD);
+            return s + (Number(sub.bsDecimals) || 0);
+        }, 0);
+
+        return {
+            ...totalsFromUsd,
+            bs: sumBs,
+            bsDecimals: sumBsDecimals
+        };
+    }, [cart, cartTotal, appSettings.dolarBCV, appSettings.dolarParalelo]);
     // const activeInventoryName = useMemo(() => inventories.find(inv => inv.id === activeInventoryId)?.name || 'Ninguno', [inventories, activeInventoryId]);
 
     const incrementQuantity = (docId) => {
@@ -774,8 +1002,8 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                                             <input
                                                 type="text"
                                                 placeholder="Juan Pérez"
-                                                value={customer.name}
-                                                onChange={(e) => setCustomer(p => ({ ...p, name: e.target.value }))}
+                                                value={activeCustomer.name}
+                                                onChange={(e) => setActiveTabCustomer(p => ({ ...p, name: e.target.value }))}
                                                 autoComplete="name"
                                             />
                                         </label>
@@ -784,8 +1012,8 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                                             <input
                                                 type="tel"
                                                 placeholder="0412-1234567"
-                                                value={customer.phone}
-                                                onChange={(e) => setCustomer(p => ({ ...p, phone: e.target.value }))}
+                                                value={activeCustomer.phone}
+                                                onChange={(e) => setActiveTabCustomer(p => ({ ...p, phone: e.target.value }))}
                                                 inputMode="tel"
                                                 autoComplete="tel"
                                             />
@@ -795,8 +1023,8 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                                             <input
                                                 type="text"
                                                 placeholder="V-12345678"
-                                                value={customer.id}
-                                                onChange={(e) => setCustomer(p => ({ ...p, id: e.target.value }))}
+                                                value={activeCustomer.id}
+                                                onChange={(e) => setActiveTabCustomer(p => ({ ...p, id: e.target.value }))}
                                             />
                                         </label>
                                         <label className="span-2">
@@ -804,8 +1032,8 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                                             <input
                                                 type="text"
                                                 placeholder="Calle, sector, ciudad"
-                                                value={customer.address}
-                                                onChange={(e) => setCustomer(p => ({ ...p, address: e.target.value }))}
+                                                value={activeCustomer.address}
+                                                onChange={(e) => setActiveTabCustomer(p => ({ ...p, address: e.target.value }))}
                                                 autoComplete="street-address"
                                             />
                                         </label>
@@ -813,8 +1041,8 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                                             <span>Notas</span>
                                             <textarea
                                                 placeholder="Observaciones, referencias..."
-                                                value={customer.notes}
-                                                onChange={(e) => setCustomer(p => ({ ...p, notes: e.target.value }))}
+                                                value={activeCustomer.notes}
+                                                onChange={(e) => setActiveTabCustomer(p => ({ ...p, notes: e.target.value }))}
                                             />
                                         </label>
                                     </div>
@@ -825,8 +1053,8 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                                         <label className="method-select">
                                             <span>Método</span>
                                             <select
-                                                value={paymentMethod}
-                                                onChange={(e) => setPaymentMethod(e.target.value)}
+                                                value={activePaymentMethod}
+                                                onChange={(e) => setActiveTabPaymentMethod(e.target.value)}
                                             >
                                                 <option value="">Selecciona...</option>
                                                 <option value="punto">Punto</option>

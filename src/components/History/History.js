@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { collection, query, orderBy, limit, onSnapshot, startAfter, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, startAfter, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useData } from '../../context/DataProvider.jsx';
 import './History.css';
+import { getAuth } from 'firebase/auth'; // <-- add for debugging
 
 const PAGE_SIZE_LIVE = 120;
 const PAGE_SIZE_OLDER = 100;
@@ -50,6 +51,23 @@ function formatDateDetail(ts) {
   }
 }
 
+// Nuevo: formato compacto para el modal: "dd/mm/aa a las hh:mm"
+function formatDateModal(ts) {
+  if (!ts) return '—';
+  try {
+    const d = ts.toDate ? ts.toDate() : (typeof ts === 'string' ? new Date(ts) : ts);
+    if (isNaN(d.getTime())) return '—';
+    const day = String(d.getDate()).padStart(2,'0');
+    const month = String(d.getMonth() + 1).padStart(2,'0');
+    const year = String(d.getFullYear()).slice(-2);
+    const hours = String(d.getHours()).padStart(2,'0');
+    const minutes = String(d.getMinutes()).padStart(2,'0');
+    return `${day}/${month}/${year} a las ${hours}:${minutes}`;
+  } catch {
+    return '—';
+  }
+}
+
 function History() {
   const { inventories } = useData();
   const [liveSales, setLiveSales] = useState([]);
@@ -68,6 +86,11 @@ function History() {
   const [dateTo, setDateTo] = useState('');
 
   const [expanded, setExpanded] = useState(() => new Set());
+  const [processingRefunds, setProcessingRefunds] = useState(() => new Set());
+
+  // Nuevo: modal / candidato de reembolso
+  const [refundCandidate, setRefundCandidate] = useState(null);
+  const [showRefundModal, setShowRefundModal] = useState(false);
 
   // Listener real-time últimas ventas
   useEffect(() => {
@@ -167,6 +190,7 @@ function History() {
   const filteredSales = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     return allSales.filter(s => {
+      // NOTE: ya no excluimos ventas reembolsadas para que sigan visibles (se mostrarán en rojo)
       if (s.soldAt?.seconds) {
         const ms = s.soldAt.seconds * 1000;
         if (dateFromMs && ms < dateFromMs) return false;
@@ -190,17 +214,27 @@ function History() {
   }, [allSales, filterInventory, filterMethod, searchTerm, dateFromMs, dateToMs]);
 
   const summary = useMemo(() => {
+    // Excluir ventas reembolsadas de todos los totales (ventas, líneas, ítems y montos)
+    const active = filteredSales.filter(s => !s.refunded);
     let totalBs = 0;
     let totalUsdAdj = 0;
     let lines = 0;
     let units = 0;
-    filteredSales.forEach(s => {
+
+    active.forEach(s => {
       totalBs += Number(s.totals?.bs) || 0;
       totalUsdAdj += Number(s.totals?.usdAdjusted) || 0;
-      lines += Number(s.summary?.productLines) || 0;
+      lines += Number(s.summary?.productLines) || Number(s.items?.length) || 0;
       units += Number(s.summary?.itemCount) || 0;
     });
-    return { totalBs, totalUsdAdj, sales: filteredSales.length, lines, units };
+
+    return {
+      totalBs,
+      totalUsdAdj,
+      sales: active.length, // ahora cuenta solo ventas no reembolsadas
+      lines,
+      units
+    };
   }, [filteredSales]);
 
   const toggleExpand = (id) => {
@@ -210,6 +244,65 @@ function History() {
       return next;
     });
   };
+
+  // Abrir modal en vez de alert
+  const openRefundModal = useCallback((sale) => {
+    if (!sale || sale.refunded) return;
+    setRefundCandidate(sale);
+    setShowRefundModal(true);
+  }, []);
+
+  // Evitar scroll de fondo cuando modal abierto
+  useEffect(() => {
+    document.body.style.overflow = showRefundModal ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [showRefundModal]);
+
+  // Ejecuta el reembolso (lo que antes estaba en handleRefund)
+  const performRefund = useCallback(async () => {
+    const sale = refundCandidate;
+    if (!sale) return;
+    setProcessingRefunds(prev => new Set(prev).add(sale.id));
+    setShowRefundModal(false);
+
+    try {
+      const batch = writeBatch(db);
+      const sellRef = doc(db, 'history', 'main', 'sells', sale.id);
+      batch.update(sellRef, { refunded: true, refundedAt: serverTimestamp() });
+
+      if (!sale.inventoryId) {
+        throw new Error('Venta sin inventoryId, no se pueden devolver existencias.');
+      }
+      const inventoryRef = doc(db, 'inventories', sale.inventoryId);
+
+      (sale.items || []).forEach(it => {
+        if (!it.productDocId) {
+          console.warn('performRefund: item sin productDocId, se omite', it);
+          return;
+        }
+        const fieldPath = `products.${it.productDocId}.quantity`;
+        batch.update(inventoryRef, { [fieldPath]: increment(Number(it.quantity || 0)) });
+      });
+
+      await batch.commit();
+
+      // éxito: limpiar mensaje de error y actualizar estado local
+      setError('');
+      setLiveSales(prev => prev.map(s => s.id === sale.id ? { ...s, refunded: true } : s));
+      setOlderSales(prev => prev.map(s => s.id === sale.id ? { ...s, refunded: true } : s));
+      setRefundCandidate(null);
+      console.log('Refund committed for', sale.id);
+    } catch (err) {
+      console.error('Error refunding sale:', err);
+      setError('No se pudo deshacer la venta. Revisa consola de debug.');
+    } finally {
+      setProcessingRefunds(prev => {
+        const next = new Set(prev);
+        next.delete(sale.id);
+        return next;
+      });
+    }
+  }, [refundCandidate]);
 
   return (
     <section className="history-wrapper">
@@ -301,10 +394,11 @@ function History() {
           )}
           {filteredSales.map(sale => {
             const isOpen = expanded.has(sale.id);
+            const isRefunded = !!sale.refunded;
             return (
               <div
                 key={sale.id}
-                className={`history-row ${isOpen ? 'open' : ''}`}
+                className={`history-row ${isOpen ? 'open' : ''} ${isRefunded ? 'refunded' : ''}`}
                 title={`ID interno: ${sale.id}`}
               >
                 <div className="h-col date">{formatDateList(sale.soldAt)}</div>
@@ -314,6 +408,7 @@ function History() {
                   <span className={`pm-badge pm-${sale.paymentMethod || 'na'}`}>
                     {(sale.paymentMethod || '').replace('_', ' ') || '—'}
                   </span>
+                  {/* removed inline refunded badge to avoid layout break */}
                 </div>
                 <div className="h-col lines">{sale.summary?.productLines ?? sale.items?.length ?? 0}</div>
                 <div className="h-col items">{sale.summary?.itemCount ?? 0}</div>
@@ -339,6 +434,19 @@ function History() {
                       {sale.customer?.notes && (
                         <div className="notes"><strong>Notas:</strong> {sale.customer.notes}</div>
                       )}
+                      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                        {!isRefunded ? (
+                          <button
+                            className="outline danger small-btn"
+                            disabled={processingRefunds.has(sale.id)}
+                            onClick={() => openRefundModal(sale)}
+                          >
+                            {processingRefunds.has(sale.id) ? 'Procesando...' : 'Deshacer venta'}
+                          </button>
+                        ) : (
+                          <div className="refunded-label">Venta reembolsada</div>
+                        )}
+                      </div>
                     </div>
                     <table className="items-table">
                       <thead>
@@ -353,7 +461,7 @@ function History() {
                       </thead>
                       <tbody>
                         {(sale.items || []).map(it => (
-                          <tr key={it.productDocId}>
+                          <tr key={it.productDocId || `${it.name}-${Math.random()}`}>
                             <td>{it.name}</td>
                             <td>{it.quantity}</td>
                             <td>{formatUSD(it.unitPriceUSD)}</td>
@@ -389,6 +497,39 @@ function History() {
           <span className="no-more">No hay más</span>
         )}
       </div>
+
+      {/* Modal de confirmación de reembolso */}
+      {showRefundModal && refundCandidate && (
+        <div className="modal-overlay" role="presentation" onMouseDown={() => setShowRefundModal(false)}>
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="refund-modal-title"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <h3 id="refund-modal-title">Confirmar deshacer venta</h3>
+            <p className="modal-body">
+              ¿Deseas marcar la venta realizada el <strong>{formatDateModal(refundCandidate.soldAt)}</strong>
+              {refundCandidate.totals?.bs ? ` por ${formatBs(refundCandidate.totals.bs)}` : ''} como reembolsada y devolver las existencias al inventario?
+              Esta acción no se podrá deshacer.
+            </p>
+            <div className="modal-actions">
+              <button className="outline" onClick={() => { setShowRefundModal(false); setRefundCandidate(null); }}>
+                Cancelar
+              </button>
+              <button
+                className="outline danger"
+                onClick={performRefund}
+                disabled={processingRefunds.has(refundCandidate.id)}
+              >
+                {processingRefunds.has(refundCandidate.id) ? 'Procesando...' : 'Deshacer venta'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </section>
   );
 }

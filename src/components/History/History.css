@@ -123,6 +123,39 @@
 .pm-pago_movil { background: #0891b220; color: #0e7490; }
 .pm-divisa { background: #05966920; color: #047857; }
 .pm-efectivo { background: #f59e0b25; color: #b45309; }
+/* Estilos para ventas reembolsadas */
+.history-row.refunded {
+  background: rgba(220,38,38,0.04);
+  color: #881b1b;
+}
+.refunded-badge {
+  margin-left: .5rem;
+  display: inline-block;
+  padding: .15rem .45rem;
+  border-radius: 6px;
+  background: rgba(220,38,38,0.12);
+  color: #7f1d1d;
+  font-weight: 700;
+  font-size: .65rem;
+}
+.refunded-label {
+  padding: .25rem .5rem;
+  background: rgba(220,38,38,0.08);
+  color: #7f1d1d;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: .75rem;
+}
+
+/* Botón de peligro */
+.outline.danger {
+  border-color: rgba(220,38,38,0.6);
+  color: #9b1f1f;
+  background: transparent;
+}
+.outline.danger:disabled {
+  opacity: .6;
+}
 .sale-details {
   grid-column: 1 / -1;
   margin-top: .5rem;
@@ -185,6 +218,71 @@
   color: var(--pico-muted-color,#666);
   padding: .4rem .8rem;
 }
+
+/* Modal styles — scoped to .history-wrapper to avoid interfering con otras reglas */
+.history-wrapper .modal-overlay {
+  position: fixed;
+  top: 0; right: 0; bottom: 0; left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.45);
+  z-index: 1500;
+  padding: 1rem;
+}
+
+.history-wrapper .modal {
+  width: 100%;
+  max-width: 520px;
+  background: var(--pico-background, #fff);
+  color: var(--pico-color, #111);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  outline: none;
+  /* asegurar que no cambie el flujo de otros componentes */
+  display: block;
+}
+
+.history-wrapper .modal h3 {
+  margin: 0 0 .4rem;
+  font-size: 1.05rem;
+}
+
+.history-wrapper .modal-body {
+  margin: 0 0 .8rem;
+  font-size: .95rem;
+  color: var(--pico-muted-color, #444);
+}
+
+.history-wrapper .modal-actions {
+  display: flex;
+  gap: .6rem;
+  justify-content: flex-end;
+}
+
+.history-wrapper .modal-actions .outline {
+  padding: .45rem .7rem;
+  border-radius: 6px;
+}
+
+/* Dark mode support (scoped) */
+@media (prefers-color-scheme: dark) {
+  .history-wrapper .modal {
+    background: #0b1220;
+    color: #e6eef8;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.7);
+  }
+  .history-wrapper .modal-body { color: #c7d6e8; }
+  .history-wrapper .modal-overlay { background: rgba(0,0,0,0.6); }
+}
+
+/* Mobile tweaks (scoped) */
+@media (max-width: 480px) {
+  .history-wrapper .modal { padding: .9rem; max-width: 420px; }
+  .history-wrapper .modal-body { font-size: .92rem; }
+}
+
 /* Responsive adjustments */
 @media (max-width: 1180px) {
   .history-table-head,
