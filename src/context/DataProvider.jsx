@@ -8,6 +8,7 @@ export function DataProvider({ children }) {
   const [productsMap, setProductsMap] = useState({});   // {docId: { docId, ... }}
   const [inventories, setInventories] = useState([]);   // [{id, ...}]
   const [brands, setBrands] = useState([]);             // [{id, ...}]
+  const [usersMap, setUsersMap] = useState({});        // {uid: { uid, ... }}
   const [settings, setSettings] = useState({ dolarBCV: 0, dolarParalelo: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -63,11 +64,24 @@ export function DataProvider({ children }) {
       gotS = true; maybeDone();
     }, () => { gotS = true; maybeDone(); });
 
+    const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
+      setUsersMap(prev => {
+        const next = { ...prev };
+        snap.docChanges().forEach(c => {
+          const id = c.doc.id;
+          if (c.type === 'removed') delete next[id];
+          else next[id] = { uid: id, ...c.doc.data() };
+        });
+        return next;
+      });
+    }, () => {/* ignore users errors */});
+
     return () => {
       try { unsubProducts(); } catch {}
       try { unsubInventories(); } catch {}
       try { unsubBrands(); } catch {}
       try { unsubSettings(); } catch {}
+      try { unsubUsers(); } catch {}
     };
   }, []);
 
@@ -79,8 +93,9 @@ export function DataProvider({ children }) {
     productsMap,     // mapa por docId
     inventories,
     brands,
-    settings
-  }), [loading, products, productsMap, inventories, brands, settings]);
+    settings,
+    usersMap
+  }), [loading, products, productsMap, inventories, brands, settings, usersMap]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

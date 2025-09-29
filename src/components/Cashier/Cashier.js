@@ -103,6 +103,69 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
 
     const userInteractedRef = useRef(false); // NUEVO: evita sobreescritura tras interacción del usuario
 
+    // Enhanced persistent notification + retry manager (copied from Buys)
+    const retryRef = useRef({ timer: null, running: false, resolve: null, reject: null });
+    const lastOperationRef = useRef(null);
+
+    const clearRetry = () => {
+        try { if (retryRef.current.timer) clearInterval(retryRef.current.timer); } catch (e) {}
+        retryRef.current = { timer: null, running: false, resolve: null, reject: null };
+    };
+
+    const showErrorWithRetry = (errMsg, operationFn, autoSeconds = 30) => {
+        if (retryRef.current.running) return;
+        let seconds = autoSeconds;
+        retryRef.current.running = true;
+        lastOperationRef.current = operationFn;
+
+        const attempt = async () => {
+            try {
+                const fn = lastOperationRef.current || operationFn;
+                const res = await fn();
+                clearRetry();
+                setNotification({ message: 'Operación completada correctamente.', type: 'success' });
+                return res;
+            } catch (err) {
+                console.error('Retry operation failed:', err);
+                setNotification({ message: `${errMsg}. Reintentando...`, type: 'error', retryCountdown: seconds, persistent: true });
+                retryRef.current.attempt = attempt;
+                retryRef.current.lastErrMsg = errMsg;
+                try { if (retryRef.current.timer) clearInterval(retryRef.current.timer); } catch (e) {}
+                retryRef.current.timer = setInterval(async () => {
+                    seconds -= 1;
+                    setNotification(prev => prev ? { ...prev, retryCountdown: seconds } : prev);
+                    if (seconds <= 0) {
+                        try { clearInterval(retryRef.current.timer); } catch (e) {}
+                        seconds = autoSeconds;
+                        try { await attempt(); } catch (e) { /* will reenter catch and restart timer */ }
+                    }
+                }, 1000);
+                throw err;
+            }
+        };
+
+        retryRef.current.attempt = attempt;
+        retryRef.current.lastErrMsg = errMsg;
+        return attempt();
+    };
+
+    const handleManualRetry = async () => {
+        if (!retryRef.current || typeof retryRef.current.attempt !== 'function') {
+            showNotification('No hay un reintento disponible.', 'error');
+            return;
+        }
+        // Show immediate feedback and start the attempt
+        setNotification({ message: `${retryRef.current.lastErrMsg || 'Error al procesar la venta'}. Reintentando...`, type: 'error' });
+        setIsProcessingSale(true);
+        try {
+            await retryRef.current.attempt();
+        } catch (e) {
+            // attempt will schedule countdown and persistent notification
+        } finally {
+            setIsProcessingSale(false);
+        }
+    };
+
     // Estado temporal para editar el USD ajustado en el input sin formateos forzados
     const [priceEditMap, setPriceEditMap] = useState({});
 
@@ -191,6 +254,7 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
         // 1) carga rápida al montar para restaurar inmediatamente tras F5 (no depende de inventories)
         // 2) cuando inventories esté disponible, hacer reconciliación inteligente con stock y aplicar ajustes
         const quickLoadedRef = useRef(false);
+        const notifiedLoadedRef = useRef(false);
 
         useEffect(() => {
             if (quickLoadedRef.current) return;
@@ -207,6 +271,7 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                 }
                 if (!raw) { quickLoadedRef.current = true; return; }
                 const parsed = JSON.parse(raw);
+                const quickCount = Array.isArray(parsed.tabs) ? parsed.tabs.reduce((s, t) => s + ((t.cart && Array.isArray(t.cart)) ? t.cart.reduce((ss, it) => ss + (Number(it.quantity) || 0), 0) : 0), 0) : 0;
                 if (!parsed || !Array.isArray(parsed.tabs)) { quickLoadedRef.current = true; return; }
 
                 // Normalizar/llenar tabs faltantes (asegura 9 pestañas con ids 1..9)
@@ -217,6 +282,12 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
 
                 // Aplicar inmediatamente los tabs recuperados para que la UI muestre la sesión restaurada
                 setTabs(cachedTabs);
+
+                // Mostrar notificación genérica si se restauraron items
+                if (!notifiedLoadedRef.current && quickCount > 0) {
+                    showNotification('Se cargaron los datos de la sesión anterior.', 'info', 5000);
+                    notifiedLoadedRef.current = true;
+                }
 
                 // Restaurar activeTabId (si viene en payload)
                 if (parsed.activeTabId && typeof parsed.activeTabId === 'string') {
@@ -247,6 +318,7 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                 }
                 if (!raw) { loadedFromCacheRef.current = true; return; }
                 const parsed = JSON.parse(raw);
+                const finalCount = Array.isArray(parsed.tabs) ? parsed.tabs.reduce((s, t) => s + ((t.cart && Array.isArray(t.cart)) ? t.cart.reduce((ss, it) => ss + (Number(it.quantity) || 0), 0) : 0), 0) : 0;
                 if (!parsed || !Array.isArray(parsed.tabs)) { loadedFromCacheRef.current = true; return; }
 
                 // Normalizar/llenar tabs faltantes (asegura 9 pestañas con ids 1..9)
@@ -267,10 +339,10 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                 const invIdToUse = parsed.activeInventoryId && inventories.some(i=>i.id===parsed.activeInventoryId) ? parsed.activeInventoryId : (inventories[0]?.id || null);
                 const { tabs: adjustedTabs, adjustments } = reconcileTabsWithStock(cachedTabs, invIdToUse);
                 setTabs(adjustedTabs);
-                if (adjustments.length) {
-                    const short = adjustments.slice(0, 6).join(', ');
-                    const msg = `Se ajustaron cantidades al restaurar la sesión: ${short}${adjustments.length > 6 ? '…' : ''}`;
-                    showNotification(msg, 'info', 7000);
+                // If not yet notified in quick-load, notify now when there are items
+                if (!notifiedLoadedRef.current && finalCount > 0) {
+                    showNotification('Se cargaron los datos de la sesión anterior.', 'info', 5000);
+                    notifiedLoadedRef.current = true;
                 }
             } catch (err) {
                 console.warn('Error al cargar cache de cashier (reconciliación):', err);
@@ -515,6 +587,8 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
         const inventoryDocRef = doc(db, 'inventories', activeInventoryId);
         const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+    let operationFn = null;
+
         try {
             // Validación local de stock
             const activeInv = inventories.find(inv => inv.id === activeInventoryId);
@@ -533,124 +607,131 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                 updates[`products.${item.docId}.quantity`] = increment(-item.quantity);
             }
 
-            const maxAttempts = 3;
-            for (let attempt = 0; attempt < maxAttempts; attempt++) {
-                try {
-                    await updateDoc(inventoryDocRef, updates);
-                    break;
-                } catch (err) {
-                    const code = String(err?.code || err?.message || '');
-                    if (attempt < maxAttempts - 1 && (code.includes('resource-exhausted') || code.includes('429'))) {
-                        await sleep(350 + Math.floor(Math.random() * 650));
-                        continue;
-                    }
-                    throw err;
-                }
-            }
-
-            // --- RECONCILIAR OTRAS PESTAÑAS: ajustar cantidades si ahora hay menos stock ---
-            try {
-                // stock actual antes de la venta (tomado del activeInv leído arriba)
-                const currentStockMap = {};
-                for (const [pid, pdata] of Object.entries(activeInv.products || {})) {
-                    currentStockMap[pid] = Number(pdata?.quantity) || 0;
-                }
-                // cantidad vendida por producto en esta venta
-                const soldMap = cart.reduce((m, it) => { m[it.docId] = (m[it.docId] || 0) + Number(it.quantity || 0); return m; }, {});
-
-                // stock restante por producto (después de la venta local)
-                const stockAfterMap = {};
-                for (const pid of Object.keys(soldMap)) {
-                    stockAfterMap[pid] = Math.max(0, (currentStockMap[pid] || 0) - soldMap[pid]);
-                }
-
-                // Ajustar otras pestañas en orden ascendente (1..9). Se asigna stock restante en orden.
-                const adjustedInfo = []; // acumula mensajes para notificación
-                setTabs(prevTabs => {
-                    // clonar pestañas y carritos
-                    const clone = prevTabs.map(t => ({ ...t, cart: (t.cart || []).map(i => ({ ...i })) }));
-                    const otherTabs = clone.filter(t => t.id !== activeTabId).sort((a,b) => Number(a.id) - Number(b.id));
-
-                    for (const pid of Object.keys(stockAfterMap)) {
-                        let remaining = stockAfterMap[pid];
-                        for (const tab of otherTabs) {
-                            const item = tab.cart.find(i => i.docId === pid);
-                            if (!item) continue;
-                            const oldQty = item.quantity || 0;
-                            const allowed = Math.min(oldQty, remaining);
-                            if (oldQty !== allowed) {
-                                adjustedInfo.push(`${item.name || pid}: ${oldQty}→${allowed}`);
-                                item.quantity = allowed;
-                            }
-                            remaining = Math.max(0, remaining - allowed);
+            // Prepare the remote operation so it can be retried
+            operationFn = async () => {
+                // perform the inventory update
+                const maxAttempts = 3;
+                for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                    try {
+                        await updateDoc(inventoryDocRef, updates);
+                        break;
+                    } catch (err) {
+                        const code = String(err?.code || err?.message || '');
+                        if (attempt < maxAttempts - 1 && (code.includes('resource-exhausted') || code.includes('429'))) {
+                            await sleep(350 + Math.floor(Math.random() * 650));
+                            continue;
                         }
+                        throw err;
                     }
-                    return clone;
+                }
+
+                // RECONCILE other tabs after inventory update (same logic)
+                try {
+                    const currentStockMap = {};
+                    for (const [pid, pdata] of Object.entries(activeInv.products || {})) {
+                        currentStockMap[pid] = Number(pdata?.quantity) || 0;
+                    }
+                    const soldMap = cart.reduce((m, it) => { m[it.docId] = (m[it.docId] || 0) + Number(it.quantity || 0); return m; }, {});
+                    const stockAfterMap = {};
+                    for (const pid of Object.keys(soldMap)) {
+                        stockAfterMap[pid] = Math.max(0, (currentStockMap[pid] || 0) - soldMap[pid]);
+                    }
+
+                    const adjustedInfo = [];
+                    setTabs(prevTabs => {
+                        const clone = prevTabs.map(t => ({ ...t, cart: (t.cart || []).map(i => ({ ...i })) }));
+                        const otherTabs = clone.filter(t => t.id !== activeTabId).sort((a,b) => Number(a.id) - Number(b.id));
+
+                        for (const pid of Object.keys(stockAfterMap)) {
+                            let remaining = stockAfterMap[pid];
+                            for (const tab of otherTabs) {
+                                const item = tab.cart.find(i => i.docId === pid);
+                                if (!item) continue;
+                                const oldQty = item.quantity || 0;
+                                const allowed = Math.min(oldQty, remaining);
+                                if (oldQty !== allowed) {
+                                    adjustedInfo.push(`${item.name || pid}: ${oldQty}→${allowed}`);
+                                    item.quantity = allowed;
+                                }
+                                remaining = Math.max(0, remaining - allowed);
+                            }
+                        }
+                        return clone;
+                    });
+
+                    if (adjustedInfo.length) {
+                        const short = adjustedInfo.slice(0, 6).join(', ');
+                        const msg = `Se ajustaron cantidades en otras pestañas: ${short}${adjustedInfo.length > 6 ? '…' : ''}`;
+                        showNotification(msg, 'info', 6000);
+                    }
+                } catch (reconErr) {
+                    console.warn('Reconcilación de pestañas fallida:', reconErr);
+                }
+
+                // write sale history
+                const saleId = `sell_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                const to2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+                const items = cart.map(item => {
+                    const unit = calculateAmounts(item.price, appSettings.dolarBCV, appSettings.dolarParalelo);
+                    const subtotalUSD = item.price * item.quantity;
+                    const sub = calculateAmounts(subtotalUSD, appSettings.dolarBCV, appSettings.dolarParalelo);
+                    return {
+                        productDocId: item.docId,
+                        productId: item.id ?? null,
+                        name: item.name,
+                        quantity: item.quantity,
+                        unitPriceUSD: to2(item.price),
+                        ratesUsed: { bcv: to2(appSettings.dolarBCV), paralelo: to2(appSettings.dolarParalelo) },
+                        unitPriceBs: Math.max(0, Math.round(unit.bs)),
+                        unitPriceUsdAdjusted: to2(unit.usdAdjusted),
+                        subtotalBs: Math.max(0, Math.round(sub.bs)),
+                        subtotalUsdAdjusted: to2(sub.usdAdjusted),
+                    };
                 });
 
-                if (adjustedInfo.length) {
-                    const short = adjustedInfo.slice(0, 6).join(', ');
-                    const msg = `Se ajustaron cantidades en otras pestañas: ${short}${adjustedInfo.length > 6 ? '…' : ''}`;
-                    showNotification(msg, 'info', 6000);
-                }
-            } catch (reconErr) {
-                console.warn('Reconcilación de pestañas fallida:', reconErr);
-            }
+                const cartTotal = cart.reduce((t, i) => t + (i.price * i.quantity), 0);
+                const totals = calculateAmounts(cartTotal, appSettings.dolarBCV, appSettings.dolarParalelo);
+                const activeInventoryName = inventories.find(i => i.id === activeInventoryId)?.name || '';
 
-            // Registrar venta en history/main/sells
-            const saleId = `sell_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-            const to2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
-            const items = cart.map(item => {
-                const unit = calculateAmounts(item.price, appSettings.dolarBCV, appSettings.dolarParalelo);
-                const subtotalUSD = item.price * item.quantity;
-                const sub = calculateAmounts(subtotalUSD, appSettings.dolarBCV, appSettings.dolarParalelo);
-                return {
-                    productDocId: item.docId,
-                    productId: item.id ?? null,
-                    name: item.name,
-                    quantity: item.quantity,
-                    unitPriceUSD: to2(item.price),
+                await setDoc(doc(db, 'history', 'main', 'sells', saleId), {
+                    id: saleId,
+                    soldAt: serverTimestamp(),
+                    soldAtISO: new Date().toISOString(),
+                    userId: user?.uid || null,
+                    inventoryId: activeInventoryId,
+                    inventoryName: activeInventoryName,
+                    customer: { ...(activeCustomer || defaultCustomer) },
+                    paymentMethod: activePaymentMethod,
+                    items,
+                    totals: {
+                        bs: Math.max(0, Math.round(totals.bs)),
+                        usdAdjusted: to2(totals.usdAdjusted),
+                        usdInt: Math.max(0, Math.floor(totals.usdInt)),
+                        bsDecimals: Math.max(0, Math.round(totals.bsDecimals)),
+                    },
                     ratesUsed: { bcv: to2(appSettings.dolarBCV), paralelo: to2(appSettings.dolarParalelo) },
-                    unitPriceBs: Math.max(0, Math.round(unit.bs)),
-                    unitPriceUsdAdjusted: to2(unit.usdAdjusted),
-                    subtotalBs: Math.max(0, Math.round(sub.bs)),
-                    subtotalUsdAdjusted: to2(sub.usdAdjusted),
-                };
-            });
+                    summary: { itemCount: cart.reduce((n, i) => n + i.quantity, 0), productLines: cart.length }
+                });
 
-            const cartTotal = cart.reduce((t, i) => t + (i.price * i.quantity), 0);
-            const totals = calculateAmounts(cartTotal, appSettings.dolarBCV, appSettings.dolarParalelo);
-            const activeInventoryName = inventories.find(i => i.id === activeInventoryId)?.name || '';
+                // success: local UI updates
+                showNotification("Venta realizada con éxito.", 'success');
+                setCurrentTabCart([]);
+                setActiveTabCustomer({ ...defaultCustomer });
+                setActiveTabPaymentMethod('');
+            };
 
-            await setDoc(doc(db, 'history', 'main', 'sells', saleId), {
-                id: saleId,
-                soldAt: serverTimestamp(),
-                soldAtISO: new Date().toISOString(),
-                userId: user?.uid || null,
-                inventoryId: activeInventoryId,
-                inventoryName: activeInventoryName,
-                customer: { ...(activeCustomer || defaultCustomer) },
-                paymentMethod: activePaymentMethod,
-                items,
-                totals: {
-                    bs: Math.max(0, Math.round(totals.bs)),
-                    usdAdjusted: to2(totals.usdAdjusted),
-                    usdInt: Math.max(0, Math.floor(totals.usdInt)),
-                    bsDecimals: Math.max(0, Math.round(totals.bsDecimals)),
-                },
-                ratesUsed: { bcv: to2(appSettings.dolarBCV), paralelo: to2(appSettings.dolarParalelo) },
-                summary: { itemCount: cart.reduce((n, i) => n + i.quantity, 0), productLines: cart.length }
-            });
-
-            showNotification("Venta realizada con éxito.", 'success');
-            // Vaciar sólo la pestaña activa
-            setCurrentTabCart([]);
-            setActiveTabCustomer({ ...defaultCustomer });
-            setActiveTabPaymentMethod('');
+            // Execute the remote operation now; if it fails the catch below
+            // will start the retry manager using the prepared operationFn.
+            await operationFn();
         } catch (err) {
             console.error('Error al procesar la venta:', err);
-            setError(err?.message || 'No se pudo completar la venta.');
-            showNotification(err?.message || 'No se pudo completar la venta.', 'error');
+            // If we prepared a remote operation, use retry manager
+            if (typeof operationFn === 'function') {
+                showErrorWithRetry('Error al procesar la venta', operationFn, 30).catch(() => {});
+            } else {
+                setError(err?.message || 'No se pudo completar la venta.');
+                showNotification(err?.message || 'No se pudo completar la venta.', 'error');
+            }
         } finally {
             setIsProcessingSale(false);
         }
@@ -1064,14 +1145,22 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                                             </select>
                                         </label>
                                         {cart.length > 0 && (
-                                            <button
-                                                className="confirm-btn"
-                                                onClick={handleConfirmSale}
-                                                disabled={isProcessingSale}
-                                                aria-busy={isProcessingSale}
-                                            >
-                                                {isProcessingSale ? 'Procesando...' : 'Confirmar Venta'}
-                                            </button>
+                                            <>
+                                                {!retryRef.current.running ? (
+                                                    <button
+                                                        className="confirm-btn"
+                                                        onClick={handleConfirmSale}
+                                                        disabled={isProcessingSale}
+                                                        aria-busy={isProcessingSale}
+                                                    >
+                                                        {isProcessingSale ? 'Procesando...' : 'Confirmar Venta'}
+                                                    </button>
+                                                ) : (
+                                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                                        <button className="confirm-btn" onClick={handleManualRetry} disabled={isProcessingSale} aria-busy={isProcessingSale}>{isProcessingSale ? 'Procesando...' : 'Reintentar ahora'}</button>
+                                                    </div>
+                                                )}
+                                            </>
                                         )}
                                     </div>
                                 </div>

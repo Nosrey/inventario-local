@@ -1,8 +1,8 @@
-// filepath: c:\Users\nosre\OneDrive\Documents\Github\Trabajo\local-software\frontend\src\components\App\App.js
 import React from 'react';
 import { Switch, Route, Redirect } from 'react-router-dom';
 import Inventory from '../Inventory/Inventory';
 import Navbar from '../Navbar/Navbar';
+import Buys from '../Buys/Buys';
 import Cashier from '../Cashier/Cashier';
 import Settings from '../Settings/Settings';
 import History from '../History/History.js';
@@ -34,6 +34,12 @@ function App({ user, onLogout, initialActiveInventoryId }) {
             </Route>
             <Route path="/cashier">
               <Cashier
+                user={user}
+                initialActiveInventoryId={initialActiveInventoryId}
+              />
+            </Route>
+            <Route path="/buys">
+              <Buys
                 user={user}
                 initialActiveInventoryId={initialActiveInventoryId}
               />

@@ -16,7 +16,16 @@ function AddProductModal({ isOpen, onClose, onAddProduct, onDeleteProduct, inven
   // --- NUEVO: Estados para el modal de crear marca ---
   const [isNewBrandModalOpen, setIsNewBrandModalOpen] = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
+  // --- NUEVO: estados para feedback de creación ---
+  const [isCreatingBrand, setIsCreatingBrand] = useState(false);
+  const [isCreatingInventory, setIsCreatingInventory] = useState(false);
   // --- FIN NUEVO ---
+
+  // Helper de normalización a Title Case (Max Glow)
+  const normalizeName = (s) => {
+    if (!s && s !== '') return '';
+    return String(s || '').trim().replace(/\s+/g, ' ').split(' ').map(w => w ? (w[0].toUpperCase() + w.slice(1).toLowerCase()) : '').join(' ');
+  };
 
   const [imagePreviews, setImagePreviews] = useState([]); // previews de imágenes
   const fileInputRef = useRef(null); // <-- NUEVO: ref al input file
@@ -85,11 +94,28 @@ function AddProductModal({ isOpen, onClose, onAddProduct, onDeleteProduct, inven
       alert('El nombre de la marca no puede estar vacío.');
       return;
     }
-    const newBrand = await onCreateBrand(newBrandName.trim());
-    if (newBrand) {
-      setBrandId(newBrand.id); // Seleccionar la nueva marca creada
+    // Evita crear duplicados: revisar lista local primero
+    const nameTrim = normalizeName(newBrandName);
+    const foundLocal = (brands || []).find(b => normalizeName(b.name || '') === nameTrim);
+    if (foundLocal) {
+      setBrandId(foundLocal.id);
       setIsNewBrandModalOpen(false);
       setNewBrandName('');
+      alert(`La marca ya existe. Se ha seleccionado la marca existente: ${foundLocal.name || nameTrim}`);
+      return;
+    }
+
+    try {
+      setIsCreatingBrand(true);
+      // request creation with normalized name
+      const newBrand = await onCreateBrand(nameTrim);
+      if (newBrand) {
+        setBrandId(newBrand.id); // Seleccionar la nueva marca creada
+        setIsNewBrandModalOpen(false);
+        setNewBrandName('');
+      }
+    } finally {
+      setIsCreatingBrand(false);
     }
   };
 
@@ -99,15 +125,35 @@ function AddProductModal({ isOpen, onClose, onAddProduct, onDeleteProduct, inven
       alert('El nombre del inventario no puede estar vacío.');
       return;
     }
-    const newInventory = await onCreateInventory(newInventoryName.trim());
-    if (newInventory) {
-      // Añade el nuevo inventario directamente a la lista para asignarle una cantidad
-      if (!inventoryQuantities.some(iq => iq.inventoryId === newInventory.id)) {
-        setInventoryQuantities([...inventoryQuantities, { inventoryId: newInventory.id, quantity: '' }]);
+    // Evita duplicados locales por nombre
+    const nameTrim = normalizeName(newInventoryName);
+    const foundLocal = (inventories || []).find(i => normalizeName(i.name || '') === nameTrim);
+    if (foundLocal) {
+      // Añade el inventario encontrado si no está en la lista de cantidades
+      if (!inventoryQuantities.some(iq => iq.inventoryId === foundLocal.id)) {
+        setInventoryQuantities([...inventoryQuantities, { inventoryId: foundLocal.id, quantity: '' }]);
       }
-      setSelectedInventory(newInventory.id); // Selecciónalo en el dropdown también
+      setSelectedInventory(foundLocal.id);
       setIsNewInventoryModalOpen(false);
       setNewInventoryName('');
+      alert(`El inventario ya existe. Se ha seleccionado: ${foundLocal.name || nameTrim}`);
+      return;
+    }
+
+    try {
+      setIsCreatingInventory(true);
+      const newInventory = await onCreateInventory(nameTrim);
+      if (newInventory) {
+        // Añade el nuevo inventario directamente a la lista para asignarle una cantidad
+        if (!inventoryQuantities.some(iq => iq.inventoryId === newInventory.id)) {
+          setInventoryQuantities([...inventoryQuantities, { inventoryId: newInventory.id, quantity: '' }]);
+        }
+        setSelectedInventory(newInventory.id); // Selecciónalo en el dropdown también
+        setIsNewInventoryModalOpen(false);
+        setNewInventoryName('');
+      }
+    } finally {
+      setIsCreatingInventory(false);
     }
   };
 
@@ -209,8 +255,8 @@ function AddProductModal({ isOpen, onClose, onAddProduct, onDeleteProduct, inven
               />
             </label>
             <footer>
-              <button type="button" className="secondary" onClick={() => setIsNewBrandModalOpen(false)}>Cancelar</button>
-              <button type="submit" disabled={loading}>{loading ? 'Creando...' : 'Crear'}</button>
+              <button type="button" className="secondary" onClick={() => setIsNewBrandModalOpen(false)} disabled={isCreatingBrand}>Cancelar</button>
+              <button type="submit" disabled={isCreatingBrand || loading}>{isCreatingBrand ? 'Creando...' : (loading ? 'Creando...' : 'Crear')}</button>
             </footer>
           </form>
         </article>
@@ -241,8 +287,8 @@ function AddProductModal({ isOpen, onClose, onAddProduct, onDeleteProduct, inven
               />
             </label>
             <footer>
-              <button type="button" className="secondary" onClick={() => setIsNewInventoryModalOpen(false)}>Cancelar</button>
-              <button type="submit" disabled={loading}>{loading ? 'Creando...' : 'Crear'}</button>
+              <button type="button" className="secondary" onClick={() => setIsNewInventoryModalOpen(false)} disabled={isCreatingInventory}>Cancelar</button>
+              <button type="submit" disabled={isCreatingInventory || loading}>{isCreatingInventory ? 'Creando...' : (loading ? 'Creando...' : 'Crear')}</button>
             </footer>
           </form>
         </article>
@@ -269,186 +315,143 @@ function AddProductModal({ isOpen, onClose, onAddProduct, onDeleteProduct, inven
   };
 
   // --- 3. EL RETURN TEMPRANO VA AL FINAL, JUSTO ANTES DEL JSX ---
-  if (!isOpen) {
-    return null;
-  }
+  if (!isOpen) return null;
+
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) onClose && onClose();
+  };
 
   // --- 4. EL JSX FINAL ---
   return (
-    <dialog open>
-      <article className="inv-modal">
-        <header>
-          <button type="button" aria-label="Close" className="close" onClick={onClose}></button>
-          <h3>{isEditMode ? 'Editar Producto' : 'Añadir Nuevo Producto'}</h3>
+    <div className="apm-backdrop" role="presentation" onMouseDown={handleBackdropClick}>
+      <div className="apm-modal" role="dialog" aria-modal="true" aria-label={isEditMode ? 'Editar producto' : 'Añadir producto'} onMouseDown={(e) => e.stopPropagation()}>
+        <header className="apm-header">
+          <h3 className="apm-title">{isEditMode ? 'Editar Producto' : 'Añadir Nuevo Producto'}</h3>
+          <button type="button" className="apm-close" aria-label="Cerrar" onClick={onClose}>&times;</button>
         </header>
-        <form onSubmit={handleSubmit}>
-          <label htmlFor="name">
-            Nombre del Producto
-            <input type="text" id="name" value={name} onChange={(e) => setName(e.target.value)} required />
-          </label>
 
-          {/* Imágenes (maquetado + preview) */}
-          <label htmlFor="product-images">Imágenes</label>
-          <div className="file-upload">
-            <input
-              id="product-images"
-              ref={fileInputRef}          // <-- NUEVO: ref aplicado
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleImagesSelected}
-            />
-            <label className="upload-btn" htmlFor="product-images">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                   xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"
-                      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M17 8l-5-5-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M12 3v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              Subir imágenes
-            </label>
-            <span className="upload-hint">PNG, JPG. Máx. 5MB c/u</span>
-          </div>
+        <div className="apm-body">
+          {/* If creating brand or inventory, render a compact sub-form here */}
+          {isNewBrandModalOpen ? (
+            <form onSubmit={handleCreateNewBrand} className="apm-subform">
+              <label htmlFor="new-brand-name">Nombre de la Marca</label>
+              <input id="new-brand-name" type="text" value={newBrandName} onChange={(e) => setNewBrandName(e.target.value)} placeholder="Ej: Max Glow" required />
+              <div className="apm-actions">
+                <button type="button" className="btn secondary" onClick={() => setIsNewBrandModalOpen(false)} disabled={isCreatingBrand}>Cancelar</button>
+                <button type="submit" className="btn primary" disabled={isCreatingBrand || loading}>{isCreatingBrand ? 'Creando...' : 'Crear'}</button>
+              </div>
+            </form>
+          ) : isNewInventoryModalOpen ? (
+            <form onSubmit={handleCreateNewInventory} className="apm-subform">
+              <label htmlFor="new-inventory-name">Nombre del Inventario</label>
+              <input id="new-inventory-name" type="text" value={newInventoryName} onChange={(e) => setNewInventoryName(e.target.value)} placeholder="Ej: Bodega Principal" required />
+              <div className="apm-actions">
+                <button type="button" className="btn secondary" onClick={() => setIsNewInventoryModalOpen(false)} disabled={isCreatingInventory}>Cancelar</button>
+                <button type="submit" className="btn primary" disabled={isCreatingInventory || loading}>{isCreatingInventory ? 'Creando...' : 'Crear'}</button>
+              </div>
+            </form>
+          ) : (
+            <form onSubmit={handleSubmit} className="apm-form vertical">
+              <div className="apm-section">
+                <div className="apm-row">
+                  <div className="field">
+                    <label htmlFor="name">Nombre del Producto</label>
+                    <input type="text" id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+                  </div>
 
-          {imagePreviews.length > 0 && (
-            <div className="image-previews">
-              {imagePreviews.map((p, idx) => (
-                <figure className="thumb" key={idx}>
-                  <img src={p.url} alt={p.name} />
-                  <figcaption title={p.name}>
-                    {p.name}
-                  </figcaption>
-                </figure>
-              ))}
-            </div>
-          )}
-
-          {/* --- NUEVO: Sección de Marca --- */}
-          <label htmlFor="brand-picker">Marca</label>
-          <div className="grid">
-            <select
-              id="brand-picker"
-              value={brandId}
-              onChange={(e) => setBrandId(e.target.value)}
-            >
-              <option value="">Ninguna</option>
-              {brands && brands.map(brand => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
-            </select>
-            <button type="button" onClick={() => setIsNewBrandModalOpen(true)} aria-label="Crear nueva marca" style={{ width: 'auto' }}>Crear Marca</button>
-          </div>
-          {/* --- FIN NUEVO --- */}
-
-          <div className="grid">
-            <label htmlFor="cost">
-              Costo
-              <input type="number" id="cost" value={cost} onChange={(e) => setCost(e.target.value)} required min="0" step="0.01" />
-            </label>
-            <label htmlFor="price">
-              Precio
-              <input type="number" id="price" value={price} onChange={(e) => setPrice(e.target.value)} required min="0" step="0.01" />
-            </label>
-          </div>
-
-          <label htmlFor="minQuantity">
-            Cantidad Mínima (Para alertas)
-            <input type="number" id="minQuantity" value={minQuantity} onChange={(e) => setMinQuantity(e.target.value)} required min="0" />
-          </label>
-
-          <hr />
-
-          {/* --- SECCIÓN DE INVENTARIOS --- */}
-          <label htmlFor="inventory-picker">Asignar a Inventarios</label>
-          <div className="grid">
-            <select
-              id="inventory-picker"
-              value={selectedInventory || inventories[0]?.id || ''}
-              onChange={(e) => setSelectedInventory(e.target.value)}
-              disabled={inventories.length === 0}
-            >
-              {inventories.length === 0 ? (
-                <option>Crea un inventario para continuar</option>
-              ) : (
-                inventories.map(inv => <option key={inv.id} value={inv.id}>{inv.name}</option>)
-              )}
-            </select>
-            <button
-              type="button"
-              className="secondary"
-              onClick={handleAddInventoryToList}
-              disabled={
-                !(selectedInventory || inventories[0]?.id) ||
-                inventoryQuantities.some(iq => iq.inventoryId === (selectedInventory || inventories[0]?.id))
-              }
-              style={{ width: 'auto' }}
-            >
-              Añadir inventario
-            </button>
-            <button type="button" onClick={() => setIsNewInventoryModalOpen(true)} aria-label="Crear nuevo inventario" style={{ width: 'auto' }}>
-              Crear nuevo inventario
-            </button>
-          </div>
-
-          <hr />
-
-          {/* --- LISTA DE INVENTARIOS Y CANTIDADES --- */}
-          {inventoryQuantities.length > 0 && (
-            <div className="inventory-qty-list" style={{ marginTop: 'var(--pico-spacing)', display: 'flex', flexDirection: 'column', gap: 'var(--pico-spacing)' }}>
-              {inventoryQuantities.map(({ inventoryId, quantity }) => {
-                const inventory = inventories.find(inv => inv.id === inventoryId);
-                return (
-                  <div key={inventoryId}>
-                    <label
-                      htmlFor={`quantity-${inventoryId}`}
-                      style={{ textTransform: 'capitalize', marginBottom: 'calc(var(--pico-form-element-spacing-vertical) / 4)' }}
-                    >
-                      {inventory ? `Cantidad en ${inventory.name}` : 'Inventario no encontrado'}
-                    </label>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 'var(--pico-spacing)' }}>
-                      <input
-                        id={`quantity-${inventoryId}`}
-                        type="number"
-                        value={quantity}
-                        onChange={(e) => handleQuantityChange(inventoryId, e.target.value)}
-                        placeholder="Cantidad Inicial"
-                        min="0"
-                      />
-                      <button
-                        type="button"
-                        className="contrast"
-                        onClick={() => handleRemoveInventory(inventoryId)}
-                        aria-label="Quitar inventario"
-                        style={{ marginLeft: 'var(--pico-spacing)' }}
-                      >
-                        &times;
-                      </button>
+                  <div className="field">
+                    <label>Marca</label>
+                    <div className="inline">
+                      <select id="brand-picker" value={brandId} onChange={(e) => setBrandId(e.target.value)}>
+                        <option value="">Ninguna</option>
+                        {brands && brands.map(brand => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+                      </select>
+                      <button type="button" className="btn primary" onClick={() => setIsNewBrandModalOpen(true)}>Crear Marca</button>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                </div>
+              </div>
 
-          <footer style={{ paddingTop: 'var(--pico-spacing)', display:'flex', gap:'0.75rem', justifyContent:'flex-end', flexWrap:'wrap' }}>
-            {isEditMode && (
-              <button
-                type="button"
-                className="danger delete-btn"
-                onClick={handleDeleteClick}
-                disabled={loading}
-                style={{ marginRight:'auto' }}
-              >
-                {loading ? 'Eliminando...' : 'Eliminar Producto'}
-              </button>
-            )}
-            <button type="button" className="secondary" onClick={onClose} disabled={loading}>Cancelar</button>
-            <button type="submit" disabled={loading || (inventories.length === 0 && !isEditMode)}>
-              {loading ? 'Guardando...' : (isEditMode ? 'Guardar Cambios' : 'Guardar Producto')}
-            </button>
-          </footer>
-        </form>
-      </article>
-    </dialog>
+              <div className="apm-section">
+                <div className="apm-row">
+                  <div className="field">
+                    <label>Imágenes</label>
+                    <div className="file-upload">
+                      <input id="product-images" ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImagesSelected} />
+                      <label className="upload-btn" htmlFor="product-images">Subir imágenes</label>
+                      <span className="upload-hint">PNG, JPG. Máx. 5MB c/u</span>
+                      {imagePreviews.length > 0 && (
+                        <div className="image-previews">
+                          {imagePreviews.map((p, idx) => (
+                            <figure className="thumb" key={idx}><img src={p.url} alt={p.name} /></figure>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor="cost">Costo</label>
+                    <input type="number" id="cost" value={cost} onChange={(e) => setCost(e.target.value)} min="0" step="0.01" />
+                    <label htmlFor="price">Precio</label>
+                    <input type="number" id="price" value={price} onChange={(e) => setPrice(e.target.value)} min="0" step="0.01" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="apm-section">
+                <div className="apm-row">
+                  <div className="field full">
+                    <label htmlFor="minQuantity">Cantidad Mínima (Para alertas)</label>
+                    <input type="number" id="minQuantity" value={minQuantity} onChange={(e) => setMinQuantity(e.target.value)} min="0" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="apm-section">
+                <label>Asignar a Inventarios</label>
+                <div className="apm-row">
+                  <div className="field">
+                    <div className="inline">
+                      <select id="inventory-picker" value={selectedInventory || inventories[0]?.id || ''} onChange={(e) => setSelectedInventory(e.target.value)} disabled={inventories.length === 0}>
+                        {inventories.length === 0 ? <option>Crea un inventario para continuar</option> : inventories.map(inv => <option key={inv.id} value={inv.id}>{inv.name}</option>)}
+                      </select>
+                      <button type="button" className="btn secondary" onClick={handleAddInventoryToList} disabled={!(selectedInventory || inventories[0]?.id) || inventoryQuantities.some(iq => iq.inventoryId === (selectedInventory || inventories[0]?.id))}>Añadir</button>
+                    </div>
+                    <button type="button" className="btn" onClick={() => setIsNewInventoryModalOpen(true)}>Crear nuevo inventario</button>
+                  </div>
+                </div>
+
+                {inventoryQuantities.length > 0 && (
+                  <div className="inventory-list">
+                    {inventoryQuantities.map(({ inventoryId, quantity }) => {
+                      const inventory = inventories.find(inv => inv.id === inventoryId);
+                      return (
+                        <div key={inventoryId} className="inventory-item">
+                          <div className="inventory-label">{inventory ? inventory.name : 'Inventario no encontrado'}</div>
+                          <div className="inventory-controls">
+                            <input id={`quantity-${inventoryId}`} type="number" value={quantity} onChange={(e) => handleQuantityChange(inventoryId, e.target.value)} min="0" />
+                            <button type="button" className="btn contrast" onClick={() => handleRemoveInventory(inventoryId)} aria-label="Quitar inventario">&times;</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <footer className="apm-footer">
+                {isEditMode && (
+                  <button type="button" className="btn danger" onClick={handleDeleteClick} disabled={loading} style={{ marginRight:'auto' }}>{loading ? 'Eliminando...' : 'Eliminar Producto'}</button>
+                )}
+                <button type="button" className="btn secondary" onClick={onClose} disabled={loading}>Cancelar</button>
+                <button type="submit" className="btn primary" disabled={loading || (inventories.length === 0 && !isEditMode)}>{loading ? 'Guardando...' : (isEditMode ? 'Guardar Cambios' : 'Guardar Producto')}</button>
+              </footer>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -3,37 +3,91 @@
   max-width: 1400px;
   margin: 0 auto;
 }
-.history-header {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.25rem;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 1rem;
+
+/* Sells: 9 columns (incl. Método) */
+.history-table-head.mode-sells,
+.history-row.mode-sells {
+  display: grid;
+  grid-template-columns: 140px 180px 160px 120px 80px 80px 140px 140px 60px;
+  column-gap: .75rem;
+  gap: 0;
 }
-.history-header h1 {
-  margin: 0 0 .25rem;
-  font-size: 1.6rem;
+
+/* Buys: 9 columns (Método invisible, but same width for alignment) */
+.history-table-head.mode-buys,
+.history-row.mode-buys {
+  display: grid;
+  grid-template-columns: 140px 180px 160px 120px 80px 80px 140px 140px 60px;
+  column-gap: .75rem;
+  gap: 0;
 }
-.history-summary {
-  display: flex;
-  gap: .75rem;
-  flex-wrap: wrap;
-  background: var(--pico-card-background, var(--pico-muted-border-color));
-  border: 1px solid var(--pico-muted-border-color);
-  border-radius: 10px;
-  padding: .65rem .9rem;
-  font-size: .75rem;
+
+.history-table-head {
+  font-size: .78rem;
+  font-weight: 600;
+  background: var(--pico-muted-border-color);
+  padding: 0;
 }
-.history-summary > div {
-  display: flex;
-  flex-direction: column;
-  min-width: 70px;
+.history-row {
+  align-items: center;
+  font-size: .88rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  margin: .35rem 0;
+  position: relative;
   text-align: center;
   line-height: 1.1;
 }
 .history-summary strong {
   font-size: .95rem;
+}
+/* Improve the summary (Modo / totals) layout: clear separation, spacing, responsive */
+.history-summary {
+  display: flex;
+  gap: .75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.history-summary > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 96px;
+  padding: .35rem .6rem;
+  border-radius: 8px;
+  background: transparent; /* keep subtle to match header */
+}
+.history-summary > div strong {
+  display: block;
+  font-size: 1.02rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--pico-color);
+}
+.history-summary > div span {
+  display: block;
+  margin-top: .15rem;
+  font-size: .78rem;
+  color: var(--pico-muted-color, #8fa3ad);
+}
+/* First item is the mode control - keep it compact and inline */
+.history-summary > div:first-child {
+  min-width: auto;
+  padding: 0;
+  flex-direction: row;
+  align-items: center;
+  gap: .5rem;
+}
+.history-summary > div:first-child label { margin: 0; }
+.history-summary > div:first-child select { margin: 0; }
+
+/* Responsive: stack summary items on small screens */
+@media (max-width: 720px) {
+  .history-summary { flex-direction: column; align-items: stretch; }
+  .history-summary > div { flex-direction: row; justify-content: space-between; padding: .35rem .6rem; }
+  .history-summary > div strong { font-size: .95rem; }
+  .history-summary > div span { margin-top: 0; font-size: .76rem; }
 }
 .history-filters {
   display: flex;
@@ -63,15 +117,30 @@
   border-radius: 12px;
   overflow: hidden;
   background: var(--pico-card-background, var(--pico-background));
+  /* move horizontal padding to wrapper so header and rows align to same edges */
+  padding: 1rem 1.25rem;
 }
 .history-table-head {
   display: grid;
-  grid-template-columns: 140px 180px 160px 120px 80px 80px 140px 140px 60px; /* Fecha Cliente Inventario Método Líneas Ítems Bs USD Expand */
+  /* shared template to keep header/rows perfectly aligned */
+  grid-template-columns: var(--history-col-template, 140px 180px 160px 120px 80px 80px 140px 140px 60px);
+  column-gap: .75rem; /* horizontal breathing space */
   gap: 0;
-  padding: .6rem .75rem;
-  font-size: .75rem;
+  /* header uses wrapper padding, no internal padding to ensure alignment */
+  padding: 0;
+  font-size: .78rem;
   font-weight: 600;
   background: var(--pico-muted-border-color);
+}
+
+/* Make sure header and rows use consistent box model and internal padding for perfect alignment */
+.history-table-head, .history-row {
+  box-sizing: border-box;
+}
+
+.history-table-head .h-col,
+.history-row .h-col {
+  padding: 0; /* ensure header labels and row cells share same internal padding */
 }
 .history-rows {
   display: flex;
@@ -79,18 +148,24 @@
 }
 .history-row {
   display: grid;
-  grid-template-columns: 140px 180px 160px 120px 80px 80px 140px 140px 60px;
-  align-items: stretch;
-  font-size: .8rem;
-  padding: .4rem .75rem;
-  border-top: 1px solid var(--pico-muted-border-color);
+  grid-template-columns: var(--history-col-template, 140px 180px 160px 120px 80px 80px 140px 140px 60px);
+  column-gap: .75rem; /* match header column-gap for alignment */
+  align-items: center; /* vertically center cell contents */
+  font-size: .88rem;
+  /* rows rely on wrapper padding for left/right alignment */
+  padding: 0;
+  /* make each row look like a separated card on wide screens */
+  border: 1px solid transparent;
+  border-radius: 8px;
+  margin: .35rem 0; /* vertical gap between rows */
   position: relative;
 }
 .history-row:nth-child(even) {
-  background: rgba(0,0,0,.015);
+  background: rgba(0,0,0,.02);
 }
 .history-row.open {
-  background: rgba(0,0,0,.03);
+  background: rgba(0,0,0,.035);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.04);
 }
 .h-col {
   display: flex;
@@ -107,6 +182,23 @@
   font-size: .7rem;
   height: 1.6rem;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Ensure the expand column places its content on the right and vertically centered */
+.h-col.expand {
+  justify-content: flex-end;
+  align-items: center;
+  align-self: center; /* ensure the expand cell content is vertically centered within the grid row */
+}
+
+/* Target the expand button specifically: remove external margins that may push it out of center */
+.h-col.expand .small-btn {
+  margin: 0; /* override any bottom margin from global button rules */
+  vertical-align: middle;
+  align-self: center;
 }
 .pm-badge {
   display: inline-block;
@@ -287,10 +379,20 @@
 @media (max-width: 1180px) {
   .history-table-head,
   .history-row {
-    grid-template-columns: 120px 160px 140px 100px 70px 70px 120px 120px 52px;
-    font-size: .7rem;
+    /* smaller screens share an alternate template */
+    grid-template-columns: var(--history-col-template-sm, 120px 160px 140px 100px 70px 70px 120px 120px 52px);
+    column-gap: .5rem;
+    font-size: .72rem;
   }
 }
+/* On very large screens give rows even more horizontal breathing room */
+@media (min-width: 1400px) {
+  .history-table-head { padding: 1.2rem 2rem; }
+  .history-row { padding: .9rem 1.6rem; column-gap: 1rem; }
+}
+
+/* Temporary debug outlines to visually inspect header vs row alignment. Remove when resolved. */
+/* removed debug outlines */
 @media (max-width: 900px) {
   .history-filters { flex-direction: column; }
   .history-filters .filter-group { width: 100%; min-width: unset; }

@@ -66,7 +66,11 @@
   background: var(--lps-bg);
   color: var(--lps-text);
   width: min(900px, 100%);
-  max-height: 100%;
+  /* Prevent the modal from collapsing when the result list is short.
+     Keep a reasonable minimum so internal overlays (qty dialog) fit. */
+  min-height: min(520px, 80vh);
+  /* Cap modal to viewport minus padding */
+  max-height: calc(100vh - 2rem);
   display: flex;
   flex-direction: column;
   border-radius: 18px;
@@ -356,7 +360,9 @@
   font-size: .92rem;
   font-weight: 600;
   line-height: 1.15;
-  flex: 1;
+  /* make the name a shrinkable flex item so text-overflow works reliably */
+  flex: 1 1 0;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -385,6 +391,10 @@
 .lps-row .lps-stock {
   color: var(--lps-text);
 }
+
+/* Safety: ensure flex children inside rows can shrink and show ellipsis (covers edge-cases
+   where other styles override min-width). This helps normalize behavior between Cashier and Buys. */
+.lps-row .lps-name { min-width: 0; }
 
 /* Mantener override rojo para fuera de stock (ya existe, pero lo dejamos después para prioridad) */
 .lps-row.out .lps-name,
@@ -586,7 +596,7 @@
   position: absolute; /* variante dentro del modal */
   top: .65rem;
   right: .7rem;
-  max-width: 340px;
+  max-width: 420px;
   padding: .65rem .9rem .65rem 1rem;
   border-radius: 12px;
   font-size: .78rem;
@@ -594,7 +604,7 @@
   line-height: 1.25;
   letter-spacing: .015em;
   display: flex;
-  align-items: flex-start;
+  align-items: center; /* center to keep the icon square and vertically centered */
   gap: .55rem;
   background: linear-gradient(145deg, color-mix(in srgb, var(--lps-surface) 92%, #000 8%), color-mix(in srgb, var(--lps-surface) 85%, #000 15%));
   border: 1px solid color-mix(in srgb, var(--toast-accent), transparent 60%);
@@ -605,6 +615,7 @@
   animation: app-toast-in .28s cubic-bezier(.4,.2,.2,1);
   pointer-events: none;
   z-index: 20;
+  word-break: break-word; /* ensure long messages wrap instead of squeezing the icon */
 }
 
 .app-toast::before {
@@ -614,18 +625,31 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.15rem;
-  height: 1.15rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  min-width: 1.25rem;
+  min-height: 1.25rem;
   border-radius: 4px;
   background: var(--toast-accent);
   color: #fff;
   font-weight: 700;
   box-shadow: 0 0 0 1px color-mix(in srgb, #000 35%, transparent);
+  flex: 0 0 auto; /* prevent shrinking when message is long */
 }
 
 .app-toast.success { --toast-accent: #16a34a; } /* verde */
 .app-toast.error { --toast-accent: #dc2626; }   /* rojo */
 .app-toast.info { --toast-accent: #3b82f6; }
+
+/* When you want the toast to be fixed to the viewport (useful for page-level notifications) */
+.app-toast-fixed {
+  position: fixed !important;
+  top: 1rem !important;
+  right: 1rem !important;
+  left: auto !important;
+  max-width: 420px !important;
+  z-index: var(--layer-toast, 3000) !important;
+}
 
 @keyframes app-toast-in {
   from { opacity: 0; transform: translateY(-6px) scale(.96); }
@@ -735,6 +759,7 @@
   border-radius: 14px;
   background: var(--lps-bg);
   color: var(--lps-text);
+  appearance: textfield;
   -moz-appearance: textfield;
 }
 .lps-qty-input:focus {

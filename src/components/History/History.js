@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { collection, query, orderBy, limit, onSnapshot, startAfter, getDocs, doc, writeBatch, increment, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useData } from '../../context/DataProvider.jsx';
@@ -69,9 +69,12 @@ function formatDateModal(ts) {
 }
 
 function History() {
-  const { inventories } = useData();
+  const { inventories, usersMap: globalUsersMap } = useData();
+  const [localUsersMap, setLocalUsersMap] = useState({}); // cache for on-demand fetched users
+  const fetchingUidsRef = useRef(new Set());
   const [liveSales, setLiveSales] = useState([]);
   const [olderSales, setOlderSales] = useState([]);
+  const [mode, setMode] = useState('sells'); // 'sells' or 'buys'
   const [cursor, setCursor] = useState(null);           // último doc snapshot cargado
   const [loadingLive, setLoadingLive] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -92,35 +95,40 @@ function History() {
   const [refundCandidate, setRefundCandidate] = useState(null);
   const [showRefundModal, setShowRefundModal] = useState(false);
 
-  // Listener real-time últimas ventas
+  // Listener real-time últimas ventas/compras según modo
   useEffect(() => {
     setLoadingLive(true);
-    const sellsRef = collection(db, 'history', 'main', 'sells');
-    const qLive = query(sellsRef, orderBy('soldAt', 'desc'), limit(PAGE_SIZE_LIVE));
+  const colName = mode === 'sells' ? 'sells' : 'buys';
+  const ref = collection(db, 'history', 'main', colName);
+    const timeField = mode === 'sells' ? 'soldAt' : 'boughtAt';
+    const qLive = query(ref, orderBy(timeField, 'desc'), limit(PAGE_SIZE_LIVE));
 
     const unsub = onSnapshot(qLive, (snap) => {
       const next = snap.docs.map(docSnap => {
         const data = docSnap.data();
+        // normalize timestamp to soldAt for backward compatibility in UI
+        const ts = data.soldAt || data.boughtAt || null;
         return {
           id: docSnap.id,
-          soldAt: data.soldAt || null,
+          soldAt: ts,
+          // record original collection type so we can tell buys vs sells reliably
+          type: colName,
           ...data
         };
       });
       setLiveSales(next);
-      // Actualiza cursor solo si aún no hemos cargado older (para evitar saltos)
       if (snap.docs.length > 0 && olderSales.length === 0) {
         setCursor(snap.docs[snap.docs.length - 1]);
       }
       setLoadingLive(false);
     }, (err) => {
-      console.error('Error live sells:', err);
+      console.error('Error live history:', err);
       setError('No se pudo cargar el historial reciente.');
       setLoadingLive(false);
     });
 
     return () => unsub();
-  }, [olderSales.length]);
+  }, [olderSales.length, mode]);
 
   const handleLoadMore = useCallback(async () => {
     if (loadingMore || noMoreOlder || loadingLive) return;
@@ -130,10 +138,12 @@ function History() {
     }
     try {
       setLoadingMore(true);
-      const sellsRef = collection(db, 'history', 'main', 'sells');
+      const colName = mode === 'sells' ? 'sells' : 'buys';
+      const ref = collection(db, 'history', 'main', colName);
+      const timeField = mode === 'sells' ? 'soldAt' : 'boughtAt';
       const qOlder = query(
-        sellsRef,
-        orderBy('soldAt', 'desc'),
+        ref,
+        orderBy(timeField, 'desc'),
         startAfter(cursor),
         limit(PAGE_SIZE_OLDER)
       );
@@ -148,11 +158,8 @@ function History() {
       const batch = [];
       snap.forEach(docSnap => {
         const data = docSnap.data();
-        batch.push({
-          id: docSnap.id,
-            soldAt: data.soldAt || null,
-            ...data
-        });
+        const ts = data.soldAt || data.boughtAt || null;
+        batch.push({ id: docSnap.id, soldAt: ts, type: colName, ...data });
       });
 
       setOlderSales(prev => [...prev, ...batch]);
@@ -213,6 +220,65 @@ function History() {
     });
   }, [allSales, filterInventory, filterMethod, searchTerm, dateFromMs, dateToMs]);
 
+  // DEBUG: Log userIds in filteredSales and their usersMap entries
+  useEffect(() => {
+    if (mode !== 'buys') return;
+    const uids = Array.from(new Set(filteredSales.map(s => s.userId).filter(Boolean)));
+  // removed verbose debug logs
+    // determine which uids we don't have yet (neither globalUsersMap nor localUsersMap)
+    const missing = uids.filter(uid => !(globalUsersMap && globalUsersMap[uid]) && !(localUsersMap && localUsersMap[uid]) && !fetchingUidsRef.current.has(uid));
+    if (missing.length === 0) return;
+
+    let cancelled = false;
+    const doFetch = async () => {
+      try {
+        missing.forEach(uid => fetchingUidsRef.current.add(uid));
+        const promises = missing.map(uid => getDoc(doc(db, 'users', uid)).then(snap => ({ uid, snap })).catch(err => ({ uid, err })));
+        const results = await Promise.all(promises);
+        if (cancelled) return;
+  // on-demand fetch completed (results stored in localUsersMap)
+        setLocalUsersMap(prev => {
+          const next = { ...prev };
+          results.forEach(r => {
+            const uid = r.uid;
+            if (r.err) {
+              // mark as null to avoid retry storms
+              next[uid] = null;
+            } else if (r.snap && r.snap.exists()) {
+              next[uid] = { uid, ...r.snap.data() };
+            } else {
+              next[uid] = null;
+            }
+          });
+          return next;
+        });
+      } catch (err) {
+        // ignore; individual failures handled per-item
+      } finally {
+        missing.forEach(uid => fetchingUidsRef.current.delete(uid));
+      }
+    };
+
+    doFetch();
+    return () => { cancelled = true; };
+  }, [mode, filteredSales, globalUsersMap]);
+
+  // Resolve a friendly display name for a sale's userId using the global users cache
+  const resolveUserDisplay = (sale) => {
+    if (!sale) return '—';
+    if (sale._userDisplay) return sale._userDisplay;
+    const uid = sale.userId;
+    if (!uid) return '—';
+    // prefer localUsersMap (on-demand fetched) then globalUsersMap
+    const u = (localUsersMap && Object.prototype.hasOwnProperty.call(localUsersMap, uid) ? localUsersMap[uid] : (globalUsersMap && globalUsersMap[uid]));
+    if (!u) return '—';
+    if (u.username && String(u.username).trim().length > 0) return String(u.username).trim();
+    if (u.name && String(u.name).trim().length > 0) return String(u.name).trim();
+    if (u.displayName && String(u.displayName).trim().length > 0) return String(u.displayName).trim();
+    if (u.email && String(u.email).includes('@')) return String(u.email).split('@')[0];
+    return '—';
+  };
+
   const summary = useMemo(() => {
     // Excluir ventas reembolsadas de todos los totales (ventas, líneas, ítems y montos)
     const active = filteredSales.filter(s => !s.refunded);
@@ -223,7 +289,13 @@ function History() {
 
     active.forEach(s => {
       totalBs += Number(s.totals?.bs) || 0;
-      totalUsdAdj += Number(s.totals?.usdAdjusted) || 0;
+      if (mode === 'sells') {
+        totalUsdAdj += Number(s.totals?.usdAdjusted) || 0;
+      } else {
+        // buys: always compute USD totals from the raw unitCostUSD * quantity (display-only)
+        const byItems = (s.items || []).reduce((acc, it) => acc + ((Number(it.unitCostUSD) || 0) * (Number(it.quantity) || 0)), 0);
+        totalUsdAdj += byItems;
+      }
       lines += Number(s.summary?.productLines) || Number(s.items?.length) || 0;
       units += Number(s.summary?.itemCount) || 0;
     });
@@ -267,34 +339,69 @@ function History() {
 
     try {
       const batch = writeBatch(db);
-      const sellRef = doc(db, 'history', 'main', 'sells', sale.id);
-      batch.update(sellRef, { refunded: true, refundedAt: serverTimestamp() });
 
-      if (!sale.inventoryId) {
-        throw new Error('Venta sin inventoryId, no se pueden devolver existencias.');
-      }
-      const inventoryRef = doc(db, 'inventories', sale.inventoryId);
+  // Decide by inspecting the sale object rather than relying on `mode`.
+  // Prefer an explicit `type` (set when loading docs) if present.
+  const type = sale.type || (sale.boughtAt ? 'buys' : (sale.soldAt ? 'sells' : null));
 
-      (sale.items || []).forEach(it => {
-        if (!it.productDocId) {
-          console.warn('performRefund: item sin productDocId, se omite', it);
-          return;
+  if (type === 'sells' || (type === null && (mode === 'sells' || sale.soldAt))) {
+        // sell refund logic
+        const sellRef = doc(db, 'history', 'main', 'sells', sale.id);
+        batch.update(sellRef, { refunded: true, refundedAt: serverTimestamp() });
+
+        if (!sale.inventoryId) {
+          throw new Error('Venta sin inventoryId, no se pueden devolver existencias.');
         }
-        const fieldPath = `products.${it.productDocId}.quantity`;
-        batch.update(inventoryRef, { [fieldPath]: increment(Number(it.quantity || 0)) });
-      });
+        const inventoryRef = doc(db, 'inventories', sale.inventoryId);
+
+        (sale.items || []).forEach(it => {
+          if (!it.productDocId) {
+            console.warn('performRefund: item sin productDocId, se omite', it);
+            return;
+          }
+          const fieldPath = `products.${it.productDocId}.quantity`;
+          // add back quantities for sells
+          batch.update(inventoryRef, { [fieldPath]: increment(Number(it.quantity || 0)) });
+        });
+
+      } else {
+        // buy return logic: mark buy as refunded/returned and remove the stock that was added
+        const buyRef = doc(db, 'history', 'main', 'buys', sale.id);
+        batch.update(buyRef, { refunded: true, refundedAt: serverTimestamp() });
+
+        if (!sale.inventoryId) {
+          throw new Error('Compra sin inventoryId, no se pueden quitar existencias.');
+        }
+        const inventoryRef = doc(db, 'inventories', sale.inventoryId);
+
+        (sale.items || []).forEach(it => {
+          if (!it.productDocId) {
+            console.warn('performRefund (buy): item sin productDocId, se omite', it);
+            return;
+          }
+          const fieldPath = `products.${it.productDocId}.quantity`;
+          // reverse the buy: decrement the quantities that were added when the buy was recorded
+          batch.update(inventoryRef, { [fieldPath]: increment(Number(it.quantity || 0) * -1) });
+        });
+      }
 
       await batch.commit();
 
       // éxito: limpiar mensaje de error y actualizar estado local
       setError('');
-      setLiveSales(prev => prev.map(s => s.id === sale.id ? { ...s, refunded: true } : s));
-      setOlderSales(prev => prev.map(s => s.id === sale.id ? { ...s, refunded: true } : s));
+      // update local lists depending on mode
+      if (mode === 'sells' || sale.soldAt) {
+        setLiveSales(prev => prev.map(s => s.id === sale.id ? { ...s, refunded: true } : s));
+        setOlderSales(prev => prev.map(s => s.id === sale.id ? { ...s, refunded: true } : s));
+      } else {
+        setLiveSales(prev => prev.map(s => s.id === sale.id ? { ...s, refunded: true } : s));
+        setOlderSales(prev => prev.map(s => s.id === sale.id ? { ...s, refunded: true } : s));
+      }
       setRefundCandidate(null);
-      console.log('Refund committed for', sale.id);
+      console.log('Refund/Return committed for', sale.id);
     } catch (err) {
       console.error('Error refunding sale:', err);
-      setError('No se pudo deshacer la venta. Revisa consola de debug.');
+      setError('No se pudo deshacer la venta/compra. Revisa consola de debug.');
     } finally {
       setProcessingRefunds(prev => {
         const next = new Set(prev);
@@ -304,15 +411,24 @@ function History() {
     }
   }, [refundCandidate]);
 
+  // We now rely on `usersMap` provided by DataProvider (globalUsersMap) which keeps all users in cache
+
   return (
     <section className="history-wrapper">
       <header className="history-header">
         <div>
-          <h1>Historial de Ventas</h1>
-          <p className="muted">Registros recientes en tiempo real. Carga más para ver ventas antiguas.</p>
+          <h1>Historial</h1>
+          <p className="muted">Registros recientes en tiempo real. Carga más para ver registros antiguos.</p>
         </div>
         <div className="history-summary">
-          <div><strong>{summary.sales}</strong><span>Ventas</span></div>
+          <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+            <label style={{ fontSize: '0.9rem' }}>Modo:</label>
+            <select value={mode} onChange={e => { setMode(e.target.value); setOlderSales([]); setCursor(null); }}>
+              <option value="sells">Ventas</option>
+              <option value="buys">Compras</option>
+            </select>
+          </div>
+          <div><strong>{summary.sales}</strong><span>{mode === 'sells' ? 'Ventas' : 'Compras'}</span></div>
           <div><strong>{summary.lines}</strong><span>Líneas</span></div>
           <div><strong>{summary.units}</strong><span>Ítems</span></div>
           <div><strong>{formatBs(summary.totalBs)}</strong><span>Total Bs</span></div>
@@ -330,16 +446,18 @@ function History() {
             ))}
           </select>
         </div>
-        <div className="filter-group">
-          <label>Método</label>
-          <select value={filterMethod} onChange={e => setFilterMethod(e.target.value)}>
-            <option value="all">Todos</option>
-            <option value="punto">Punto</option>
-            <option value="pago_movil">Pago móvil</option>
-            <option value="divisa">Divisa</option>
-            <option value="efectivo">Efectivo</option>
-          </select>
-        </div>
+        {mode === 'sells' && (
+          <div className="filter-group">
+            <label>Método</label>
+            <select value={filterMethod} onChange={e => setFilterMethod(e.target.value)}>
+              <option value="all">Todos</option>
+              <option value="punto">Punto</option>
+              <option value="pago_movil">Pago móvil</option>
+              <option value="divisa">Divisa</option>
+              <option value="efectivo">Efectivo</option>
+            </select>
+          </div>
+        )}
         <div className="filter-group">
           <label>Desde</label>
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
@@ -377,11 +495,13 @@ function History() {
       {loadingLive && <article aria-busy="true">Cargando ventas recientes…</article>}
 
       <div className="history-table-wrapper">
-        <div className="history-table-head">
+  <div className={`history-table-head mode-${mode}`}>
           <div className="h-col date">Fecha</div>
-          <div className="h-col customer">Cliente</div>
+          <div className="h-col customer">{mode === 'sells' ? 'Cliente' : 'Usuario'}</div>
           <div className="h-col inv">Inventario</div>
-          <div className="h-col method">Método</div>
+          {mode === 'sells'
+            ? <div className="h-col method">Método</div>
+            : <div className="h-col method" style={{ visibility: 'hidden' }}></div>}
           <div className="h-col lines">Líneas</div>
           <div className="h-col items">Ítems</div>
           <div className="h-col totalbs">Total Bs</div>
@@ -389,6 +509,7 @@ function History() {
           <div className="h-col expand"></div>
         </div>
         <div className="history-rows">
+          {/* mode-specific row class for grid alignment */}
           {filteredSales.length === 0 && !loadingLive && (
             <div className="history-empty">Sin resultados con los filtros actuales.</div>
           )}
@@ -398,22 +519,25 @@ function History() {
             return (
               <div
                 key={sale.id}
-                className={`history-row ${isOpen ? 'open' : ''} ${isRefunded ? 'refunded' : ''}`}
+                className={`history-row mode-${mode} ${isOpen ? 'open' : ''} ${isRefunded ? 'refunded' : ''}`}
                 title={`ID interno: ${sale.id}`}
               >
                 <div className="h-col date">{formatDateList(sale.soldAt)}</div>
-                <div className="h-col customer">{sale.customer?.name || '—'}</div>
+                <div className="h-col customer">{mode === 'sells' ? (sale.customer?.name || '—') : resolveUserDisplay(sale)}</div>
                 <div className="h-col inv" title={sale.inventoryName}>{sale.inventoryName || sale.inventoryId}</div>
-                <div className="h-col method">
-                  <span className={`pm-badge pm-${sale.paymentMethod || 'na'}`}>
-                    {(sale.paymentMethod || '').replace('_', ' ') || '—'}
-                  </span>
-                  {/* removed inline refunded badge to avoid layout break */}
-                </div>
+                {mode === 'sells' ? (
+                  <div className="h-col method">
+                    <span className={`pm-badge pm-${sale.paymentMethod || 'na'}`}>
+                      {(sale.paymentMethod || '').replace('_', ' ') || '—'}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="h-col method" style={{ visibility: 'hidden' }}></div>
+                )}
                 <div className="h-col lines">{sale.summary?.productLines ?? sale.items?.length ?? 0}</div>
                 <div className="h-col items">{sale.summary?.itemCount ?? 0}</div>
                 <div className="h-col totalbs">{formatBs(sale.totals?.bs)}</div>
-                <div className="h-col totalusd">{formatUSD(sale.totals?.usdAdjusted)}</div>
+                <div className="h-col totalusd">{mode === 'sells' ? formatUSD(sale.totals?.usdAdjusted) : formatUSD((sale.items || []).reduce((acc,it) => acc + ((Number(it.unitCostUSD)||0) * (Number(it.quantity)||0)), 0))}</div>
                 <div className="h-col expand">
                   <button
                     className="outline secondary small-btn"
@@ -427,24 +551,33 @@ function History() {
                   <div className="sale-details">
                     <div className="sale-meta">
                       <div><strong>Fecha:</strong> {formatDateDetail(sale.soldAt)}</div>
-                      <div><strong>Cliente:</strong> {sale.customer?.name || '—'}</div>
-                      <div><strong>Cédula:</strong> {sale.customer?.id || '—'}</div>
-                      <div><strong>Teléfono:</strong> {sale.customer?.phone || '—'}</div>
-                      <div><strong>Dirección:</strong> {sale.customer?.address || '—'}</div>
-                      {sale.customer?.notes && (
-                        <div className="notes"><strong>Notas:</strong> {sale.customer.notes}</div>
+                      {mode === 'sells' ? (
+                        <>
+                          <div><strong>Cliente:</strong> {sale.customer?.name || '—'}</div>
+                          <div><strong>Cédula:</strong> {sale.customer?.id || '—'}</div>
+                          <div><strong>Teléfono:</strong> {sale.customer?.phone || '—'}</div>
+                          <div><strong>Dirección:</strong> {sale.customer?.address || '—'}</div>
+                          {sale.customer?.notes && (
+                            <div className="notes"><strong>Notas:</strong> {sale.customer.notes}</div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <div><strong>Usuario:</strong> {resolveUserDisplay(sale)}</div>
+                        </>
                       )}
                       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                        {/* For sells show 'Deshacer venta', for buys show 'Devolver compra'. Both use the same refund modal/flow. */}
                         {!isRefunded ? (
                           <button
                             className="outline danger small-btn"
                             disabled={processingRefunds.has(sale.id)}
                             onClick={() => openRefundModal(sale)}
                           >
-                            {processingRefunds.has(sale.id) ? 'Procesando...' : 'Deshacer venta'}
+                            {processingRefunds.has(sale.id) ? 'Procesando...' : (mode === 'sells' ? 'Deshacer venta' : 'Devolver compra')}
                           </button>
                         ) : (
-                          <div className="refunded-label">Venta reembolsada</div>
+                          <div className="refunded-label">{mode === 'sells' ? 'Venta reembolsada' : 'Compra devuelta'}</div>
                         )}
                       </div>
                     </div>
@@ -464,10 +597,25 @@ function History() {
                           <tr key={it.productDocId || `${it.name}-${Math.random()}`}>
                             <td>{it.name}</td>
                             <td>{it.quantity}</td>
-                            <td>{formatUSD(it.unitPriceUSD)}</td>
-                            <td>{formatBs(it.unitPriceBs)}</td>
-                            <td>{formatBs(it.subtotalBs)}</td>
-                            <td>{formatUSD(it.subtotalUsdAdjusted)}</td>
+                            {mode === 'sells' ? (
+                              <>
+                                <td>{formatUSD(it.unitPriceUSD)}</td>
+                                <td>{formatBs(it.unitPriceBs)}</td>
+                                <td>{formatBs(it.subtotalBs)}</td>
+                                <td>{formatUSD(it.subtotalUsdAdjusted)}</td>
+                              </>
+                            ) : (
+                              // buys: show raw unitCost and subtotal directly from buy doc
+                              <>
+                                <td>{formatUSD(it.unitCostUSD ?? it.unitCostUSD)}</td>
+                                <td>{formatBs(it.unitCostBs ?? it.unitCostBs)}</td>
+                                <td>{formatBs(it.subtotalBs ?? it.subtotalBs)}</td>
+                                {/* Show USD subtotal for buys as unitCostUSD * quantity (rounded to 2 decimals)
+                                    so it matches the displayed USD unit value instead of the adjusted USD computed
+                                    via exchange rate conversions. */}
+                                <td>{formatUSD(Math.round(((Number(it.unitCostUSD) || 0) * (Number(it.quantity) || 0)) * 100) / 100)}</td>
+                              </>
+                            )}
                           </tr>
                         ))}
                       </tbody>
@@ -508,11 +656,14 @@ function History() {
             aria-labelledby="refund-modal-title"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <h3 id="refund-modal-title">Confirmar deshacer venta</h3>
+            <h3 id="refund-modal-title">{mode === 'sells' ? 'Confirmar deshacer venta' : 'Confirmar devolver compra'}</h3>
             <p className="modal-body">
-              ¿Deseas marcar la venta realizada el <strong>{formatDateModal(refundCandidate.soldAt)}</strong>
-              {refundCandidate.totals?.bs ? ` por ${formatBs(refundCandidate.totals.bs)}` : ''} como reembolsada y devolver las existencias al inventario?
-              Esta acción no se podrá deshacer.
+              {mode === 'sells' ? (
+                <>¿Deseas marcar la venta realizada el <strong>{formatDateModal(refundCandidate.soldAt)}</strong>{refundCandidate.totals?.bs ? ` por ${formatBs(refundCandidate.totals.bs)}` : ''} como reembolsada y devolver las existencias al inventario?</>
+              ) : (
+                <>¿Deseas marcar la compra realizada el <strong>{formatDateModal(refundCandidate.boughtAt)}</strong>{refundCandidate.totals?.bs ? ` por ${formatBs(refundCandidate.totals.bs)}` : ''} como devuelta y quitar las existencias del inventario?</>
+              )}
+              <br/>Esta acción no se podrá deshacer.
             </p>
             <div className="modal-actions">
               <button className="outline" onClick={() => { setShowRefundModal(false); setRefundCandidate(null); }}>
@@ -523,7 +674,7 @@ function History() {
                 onClick={performRefund}
                 disabled={processingRefunds.has(refundCandidate.id)}
               >
-                {processingRefunds.has(refundCandidate.id) ? 'Procesando...' : 'Deshacer venta'}
+                {processingRefunds.has(refundCandidate.id) ? 'Procesando...' : (mode === 'sells' ? 'Deshacer venta' : 'Devolver compra')}
               </button>
             </div>
           </div>

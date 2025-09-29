@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { doc, setDoc, writeBatch, runTransaction, deleteDoc, deleteField, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, writeBatch, runTransaction, deleteDoc, deleteField, serverTimestamp, getDoc, getDocFromServer, collection, addDoc, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase.js';
 import { useData } from '../../context/DataProvider.jsx';
 import AddProductButton from '../AddProductButton/AddProductButton.js';
-import AddProductModal from '../AddProductModal/AddProductModal.js';
+import NewModalAddProductModal from '../NewModalAddProductModal/NewModalAddProductModal.js';
 import ProductSearchBar from '../ProductSearchBar/ProductSearchBar.js';
 import { FixedSizeList as List } from 'react-window';
 import './Inventory.css';
@@ -32,6 +32,20 @@ function Inventory({ user }) {
     return () => window.removeEventListener('resize', update);
   }, []);
 
+  // Ensure page background matches the inventory list while this component is mounted
+  React.useEffect(() => {
+    try {
+      document?.body?.classList?.add('inventory-bg');
+      document?.documentElement?.classList?.add('inventory-bg');
+    } catch (e) {}
+    return () => {
+      try {
+        document?.body?.classList?.remove('inventory-bg');
+        document?.documentElement?.classList?.remove('inventory-bg');
+      } catch (e) {}
+    };
+  }, []);
+
   const handleSetViewMode = async (mode) => {
     setViewMode(mode);
     if (user?.uid) {
@@ -44,6 +58,72 @@ function Inventory({ user }) {
     const allIds = new Set(['total', ...inventories.map(i => i.id)]);
     if (!allIds.has(selectedInventoryId)) setSelectedInventoryId('total');
   }, [inventories, selectedInventoryId]);
+
+  // Persist selected inventory per-user (localStorage + Firestore)
+  const userInteractedRef = React.useRef(false); // evita sobrescribir tras interacción manual
+
+  useEffect(() => {
+    if (!inventories.length) return;
+    if (userInteractedRef.current) return;
+
+    const lsKey = user?.uid ? `inventoryPickedInventory:${user.uid}` : null;
+
+    (async () => {
+      let candidate = null;
+
+      // 1) Try server-stored pick
+      if (user?.uid) {
+        try {
+          let userSnap;
+          try {
+            userSnap = await getDocFromServer(doc(db, 'users', user.uid));
+          } catch (_) {
+            userSnap = await getDoc(doc(db, 'users', user.uid));
+          }
+          if (userSnap && userSnap.exists()) {
+            const data = userSnap.data() || {};
+            const picked = data.inventoryPickedInventory;
+            if (picked && (picked === 'total' || inventories.some(i => i.id === picked))) {
+              candidate = picked;
+            }
+          }
+        } catch (e) {
+          // ignore and fallback
+        }
+      }
+
+      // 2) fallback: localStorage
+      if (!candidate && lsKey) {
+        const lsVal = localStorage.getItem(lsKey);
+        if (lsVal && (lsVal === 'total' || inventories.some(i => i.id === lsVal))) candidate = lsVal;
+      }
+
+      // 3) fallback: current state
+      if (!candidate && selectedInventoryId && (selectedInventoryId === 'total' || inventories.some(i => i.id === selectedInventoryId))) {
+        candidate = selectedInventoryId;
+      }
+
+      // 4) final fallback: first available inventory or 'total'
+      if (!candidate) candidate = inventories[0]?.id || 'total';
+
+      if (candidate !== selectedInventoryId) setSelectedInventoryId(candidate);
+    })();
+  }, [inventories, selectedInventoryId, user]);
+
+  const handleInventoryChange = async (newInventoryId) => {
+    if (newInventoryId === selectedInventoryId) return;
+    userInteractedRef.current = true;
+    setSelectedInventoryId(newInventoryId);
+    const lsKey = user?.uid ? `inventoryPickedInventory:${user.uid}` : null;
+    if (lsKey) localStorage.setItem(lsKey, newInventoryId);
+    if (user?.uid) {
+      try {
+        await setDoc(doc(db, 'users', user.uid), { inventoryPickedInventory: newInventoryId }, { merge: true });
+      } catch (err) {
+        console.error('Could not persist inventory pick for user:', err);
+      }
+    }
+  };
 
   const handleEditClick = (productDocId) => {
     const productData = productsMap[productDocId];
@@ -59,6 +139,12 @@ function Inventory({ user }) {
   };
 
   const handleCloseModal = () => { setIsModalOpen(false); setProductToEdit(null); };
+
+  // Normaliza un nombre: trim, colapsa espacios y convierte a Title Case (Max Glow)
+  const normalizeName = (s) => {
+    if (!s && s !== '') return '';
+    return String(s || '').trim().replace(/\s+/g, ' ').split(' ').map(w => w ? (w[0].toUpperCase() + w.slice(1).toLowerCase()) : '').join(' ');
+  };
   // Reemplaza COMPLETO handleAddProduct por seteo EXACTO (sin incrementos, sin deltas)
   const handleAddProduct = async (productData) => {
     setIsUpdating(true);
@@ -161,6 +247,45 @@ function Inventory({ user }) {
     }
   };
 
+  // Crear nuevo inventario desde el modal (devuelve el objeto creado o null)
+  const handleCreateInventory = async (inventoryName) => {
+    if (!inventoryName || !String(inventoryName).trim()) return null;
+    try {
+      const normalized = normalizeName(inventoryName);
+      // Verifica duplicados en Firestore buscando todos y comparando normalizados
+      const snapAll = await getDocs(collection(db, 'inventories'));
+      const existing = snapAll.docs.map(d => ({ id: d.id, ...d.data() })).find(d => normalizeName(d.name) === normalized);
+      if (existing) return existing;
+
+      const payload = { name: normalized, products: {}, updatedAt: serverTimestamp() };
+      const ref = await addDoc(collection(db, 'inventories'), payload);
+      return { id: ref.id, ...payload };
+    } catch (err) {
+      console.error('Error creando inventario:', err);
+      alert(err?.message || 'No se pudo crear el inventario');
+      return null;
+    }
+  };
+
+  // Crear nueva marca desde el modal (devuelve el objeto creado o null)
+  const handleCreateBrand = async (brandName) => {
+    if (!brandName || !String(brandName).trim()) return null;
+    try {
+      const normalized = normalizeName(brandName);
+      const snapAll = await getDocs(collection(db, 'brands'));
+      const existing = snapAll.docs.map(d => ({ id: d.id, ...d.data() })).find(d => normalizeName(d.name) === normalized);
+      if (existing) return existing;
+
+      const payload = { name: normalized };
+      const ref = await addDoc(collection(db, 'brands'), payload);
+      return { id: ref.id, ...payload };
+    } catch (err) {
+      console.error('Error creando marca:', err);
+      alert(err?.message || 'No se pudo crear la marca');
+      return null;
+    }
+  };
+
   const totalInventory = {
     id: 'total',
     name: 'Total',
@@ -186,7 +311,34 @@ function Inventory({ user }) {
     const inventoryProductData = selectedInventory?.products?.[productDocId];
     const quantity = Number(inventoryProductData?.quantity) || 0;
     const brand = brands.find(b => b.id === productInfo?.brandId);
+    // Compact list rendering (no thumbs) — used when viewMode === 'list'
+    if (viewMode === 'list') {
+      const priceLabel = productInfo?.price != null ? `$${Number(productInfo.price).toFixed(2)}` : 'N/A';
+      return (
+        <div style={style} className={`compact-row${quantity === 0 ? ' out' : ''}`}>
+          <div className="compact-row-inner">
+            <div className="compact-main">
+              <div className="compact-top">
+                <span className="compact-name" title={productInfo?.name}>{productInfo?.name || 'N/A'}</span>
+                <span className="compact-price">{priceLabel}</span>
+              </div>
+              <div className="compact-meta">
+                <span className="compact-id">ID: {productInfo?.id ?? 'N/A'}</span>
+                <span className="compact-brand">{brand?.name || '-'}</span>
+                <span className="compact-qty">{quantity}</span>
+              </div>
+            </div>
+            <div className="compact-actions">
+              <button onClick={() => handleEditClick(productDocId)} className="outline secondary row-edit-btn" aria-label={`Editar ${productInfo?.name || ''}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
+    // Default: table/desktop row (original behavior)
     return (
       <div style={style} className="table-row">
         {/* NEW: wrapper to control internal layout even when react-window sets inline position/height */}
@@ -221,30 +373,29 @@ function Inventory({ user }) {
           <div>
             <div className="inventory-controls">
               <ProductSearchBar searchTerm={searchTerm} onSearchChange={setSearchTerm} />
-              <div className="view-switcher">
+              <div className="view-switcher" role="tablist" aria-label="Selector de vista">
                 <button
-                  disabled
-                  aria-disabled="true"
-                  title="Modo lista deshabilitado"
-                  className={`outline secondary disabled ${viewMode === 'list' ? 'active' : ''}`}
+                  /* Temporarily disable list mode because it has known bugs — no-op until fixed */
+                  onClick={() => {/* no-op */}}
+                  title="Modo lista"
+                  className={`outline secondary ${viewMode === 'list' ? 'active' : ''}`}
+                  aria-pressed={viewMode === 'list'}
                 >
                   Lista
                 </button>
-                <button onClick={() => handleSetViewMode('grid')} className={`outline secondary ${viewMode === 'grid' ? 'active' : ''}`}>Cuadrícula</button>
+                <button onClick={() => handleSetViewMode('grid')} className={`outline secondary ${viewMode === 'grid' ? 'active' : ''}`} aria-pressed={viewMode === 'grid'}>Cuadrícula</button>
               </div>
             </div>
 
-            <nav style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--pico-muted-border-color)', paddingBottom: '1rem' }}>
-              <ul style={{ padding: 0, margin: 0, listStyle: 'none', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <nav className="inventory-nav-wrap">
+              <ul className="inventory-nav">
                 {displayInventories.map(inventory => (
                   <li key={inventory.id}>
-                    <a href="#!" onClick={(e) => { e.preventDefault(); setSelectedInventoryId(inventory.id); }}
-                      style={{
-                        display: 'inline-block', padding: '0.2rem 0.6rem', borderRadius: 'var(--pico-border-radius)', textDecoration: 'none', fontSize: '0.8rem', fontWeight: '500', textTransform: 'capitalize', border: '1px solid',
-                        backgroundColor: selectedInventoryId === inventory.id ? 'var(--pico-primary)' : 'transparent',
-                        color: selectedInventoryId === inventory.id ? 'var(--pico-primary-inverse)' : 'var(--pico-primary)',
-                        borderColor: selectedInventoryId === inventory.id ? 'var(--pico-primary)' : 'var(--pico-primary-border)',
-                      }}
+                    <a
+                      href="#!"
+                      onClick={(e) => { e.preventDefault(); handleInventoryChange(inventory.id); }}
+                      className={`inventory-tab ${selectedInventoryId === inventory.id ? 'active' : ''}`}
+                      aria-current={selectedInventoryId === inventory.id ? 'page' : undefined}
                     >
                       {inventory.name || inventory.id}
                     </a>
@@ -259,21 +410,45 @@ function Inventory({ user }) {
                 {filteredAndSortedKeys.length === 0 ? (
                   <p>{searchTerm ? `No se encontraron productos que coincidan con "${searchTerm}".` : "No hay productos en el sistema."}</p>
                 ) : viewMode === 'list' ? (
-                  <div className="virtual-table">
-                    <div className="table-content">
-                      <div className="table-header">
-                        <div style={{ flex: '0 0 50px' }}></div>
-                        <div className="table-cell id-cell" style={{ flex: '0 0 80px' }}>ID</div>
-                        <div className="table-cell" style={{ flex: '2 1 0' }}>Nombre</div>
-                        <div className="table-cell" style={{ flex: '1 1 0' }}>Marca</div>
-                        <div className="table-cell numeric" style={{ flex: '1 1 0' }}>Precio</div>
-                        <div className="table-cell numeric" style={{ flex: '1 1 0' }}>Costo</div>
-                        <div className="table-cell numeric" style={{ flex: '0 0 100px', justifyContent: 'flex-start' }}>Cantidad</div>
-                      </div>
-                      {/* use responsive row height so mobile rows can expand into vertical layout */}
-                      <List className="rw-outer" height={600} itemCount={filteredAndSortedKeys.length} itemSize={listRowHeight} width={'100%'}>
-                        {Row}
-                      </List>
+                  // Simple semantic table list for readability and stability
+                  <div className="simple-list-wrap">
+                    <div className="simple-list-scroll">
+                      <table className="simple-list" role="table">
+                        <thead>
+                          <tr>
+                            <th scope="col">Nombre</th>
+                            <th scope="col" className="hide-on-mobile">Marca</th>
+                            <th scope="col" className="numeric">Precio</th>
+                            <th scope="col" className="numeric">Cantidad</th>
+                            <th scope="col" className="hide-on-mobile">ID</th>
+                            <th scope="col">Acciones</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredAndSortedKeys.map((productDocId) => {
+                            const productInfo = productsMap[productDocId];
+                            const inventoryProductData = selectedInventory?.products?.[productDocId];
+                            const quantity = Number(inventoryProductData?.quantity) || 0;
+                            const brand = brands.find(b => b.id === productInfo?.brandId);
+                            const priceLabel = productInfo?.price != null ? `$${Number(productInfo.price).toFixed(2)}` : 'N/A';
+
+                            return (
+                              <tr key={productDocId} className={`${quantity === 0 ? 'out' : ''}`}>
+                                <td className="name-cell" title={productInfo?.name}>{productInfo?.name || 'N/A'}</td>
+                                <td className="hide-on-mobile">{brand?.name || '-'}</td>
+                                <td className="numeric">{priceLabel}</td>
+                                <td className="numeric">{quantity}</td>
+                                <td className="hide-on-mobile mono">{productInfo?.id ?? 'N/A'}</td>
+                                <td className="actions-cell">
+                                  <button onClick={() => handleEditClick(productDocId)} className="outline secondary row-edit-btn" aria-label={`Editar ${productInfo?.name || ''}`}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 ) : (
@@ -349,16 +524,16 @@ function Inventory({ user }) {
       </section>
 
       <AddProductButton onClick={() => setIsModalOpen(true)} />
-      <AddProductModal
+      <NewModalAddProductModal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onAddProduct={handleAddProduct}
-        onDeleteProduct={handleDeleteProduct}   // <-- NUEVO
+        onDeleteProduct={handleDeleteProduct}
         inventories={[...inventories].sort((a, b) => a.id.localeCompare(b.id))}
         brands={brands}
         loading={isUpdating}
-        onCreateInventory={() => {}}
-        onCreateBrand={() => {}}
+        onCreateInventory={handleCreateInventory}
+        onCreateBrand={handleCreateBrand}
         productToEdit={productToEdit}
       />
     </>

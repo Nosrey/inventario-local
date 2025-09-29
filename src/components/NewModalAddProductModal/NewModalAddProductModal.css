@@ -1,0 +1,195 @@
+/* Elegant vertical modal for adding products
+   - Vertical-first, max two items per row
+   - Small, reusable styles using nmapm- prefix
+*/
+
+:root {
+  /* Light theme (default) */
+  --nmapm-backdrop: rgba(2,6,23,0.06);
+  --nmapm-bg: #ffffff;
+  --nmapm-surface: #f7fafc;
+  --nmapm-text: #05121a; /* very dark text for max legibility */
+  --nmapm-muted: rgba(5,18,26,0.78); /* stronger muted for labels/help text */
+  --nmapm-border: rgba(11,18,32,0.18); /* clearer borders for inputs */
+  --nmapm-divider: rgba(11,18,32,0.10);
+  --nmapm-input-bg: #ffffff; /* input background on light */
+  --nmapm-input-border: rgba(11,18,32,0.18);
+  --nmapm-placeholder: rgba(11,18,32,0.60);
+  --nmapm-focus: rgba(25,166,214,0.22);
+  --nmapm-radius: 12px;
+  --nmapm-gap: 14px;
+  --nmapm-font-size: 14px; /* base font size for modal controls */
+}
+
+/* Dark theme overrides: follow system preference or explicit data-theme="dark" */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --nmapm-backdrop: rgba(4,8,16,0.6);
+    --nmapm-bg: #0b1220;
+    --nmapm-surface: #0f1724;
+    --nmapm-text: #e6eef8;
+    --nmapm-muted: rgba(230,238,248,0.72);
+    --nmapm-border: rgba(255,255,255,0.10);
+    --nmapm-divider: rgba(255,255,255,0.04);
+    --nmapm-input-bg: rgba(255,255,255,0.02);
+    --nmapm-input-border: rgba(255,255,255,0.08);
+    --nmapm-placeholder: rgba(230,238,248,0.45);
+    --nmapm-focus: rgba(25,166,214,0.16);
+  }
+}
+
+/* Explicit data-theme attribute should override system preference when present */
+[data-theme="dark"] {
+  --nmapm-backdrop: rgba(4,8,16,0.6);
+  --nmapm-bg: #0b1220;
+  --nmapm-surface: #0f1724;
+  --nmapm-text: #e6eef8;
+  --nmapm-muted: rgba(230,238,248,0.36);
+  --nmapm-border: rgba(255,255,255,0.04);
+}
+[data-theme="light"] {
+  --nmapm-backdrop: rgba(2,6,23,0.06);
+  --nmapm-bg: #ffffff;
+  --nmapm-surface: #f7fafc;
+  --nmapm-text: #05121a;
+  --nmapm-muted: rgba(5,18,26,0.78);
+  --nmapm-border: rgba(11,18,32,0.18);
+  --nmapm-divider: rgba(11,18,32,0.10);
+  --nmapm-input-bg: #ffffff;
+  --nmapm-input-border: rgba(11,18,32,0.18);
+  --nmapm-placeholder: rgba(11,18,32,0.60);
+  --nmapm-focus: rgba(25,166,214,0.22);
+}
+
+.nmapm-backdrop {
+  position: fixed; inset: 0; display:flex; align-items:center; justify-content:center; z-index:1500;
+  background: var(--nmapm-backdrop);
+  padding: 20px;
+}
+
+.nmapm-modal {
+  width: 100%; max-width: 880px; background: var(--nmapm-bg); color: var(--nmapm-text); border-radius: var(--nmapm-radius); overflow:hidden; box-shadow: 0 20px 60px rgba(2,6,23,0.6);
+  font-size: var(--nmapm-font-size);
+}
+
+.nmapm-header { display:flex; align-items:center; justify-content:space-between; padding:18px 20px; border-bottom:1px solid var(--nmapm-border); }
+.nmapm-title { margin:0; font-weight:700; font-size:1.05rem; flex: 0 1 auto; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* Defensive header button sizing: prevent global styles from making this full-width */
+.nmapm-close {
+  background: transparent;
+  border: 0;
+  color: var(--nmapm-text);
+  font-size: 20px;
+  cursor: pointer;
+  flex: 0 0 40px; /* fixed square */
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  padding: 0;
+}
+
+/* If any global rule set buttons to width:100%, override it for header close */
+.nmapm-header .nmapm-close[style], .nmapm-header .nmapm-close, .nmapm-header button { max-width: 48px; }
+
+.nmapm-body {
+  padding:18px 20px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  max-height: 70vh;
+  overflow: auto;
+  align-items: start;
+}
+
+/* make row wrappers disappear for CSS grid so children (.nmapm-field) become grid items */
+.nmapm-row { display: contents; }
+.nmapm-row.single { display: contents; }
+.nmapm-field { min-width:0; display:flex; flex-direction:column; gap:8px; }
+.nmapm-field.full { grid-column: 1 / -1; }
+
+.nmapm-label { color:var(--nmapm-muted); font-size:0.95rem; }
+.nmapm-field input, .nmapm-field select { padding:0 12px; border-radius:8px; border:1px solid var(--nmapm-input-border); background: var(--nmapm-input-bg); color:var(--nmapm-text); height:44px; box-sizing:border-box; font-size:0.95rem; }
+.nmapm-field input::placeholder { color: var(--nmapm-placeholder); }
+.nmapm-field select { -webkit-appearance: none; -moz-appearance: none; appearance: none; }
+
+/* Style native dropdown options for dark theme so they're readable */
+.nmapm-field select option { background: var(--nmapm-surface); color: var(--nmapm-text); }
+.nmapm-field select option:checked, .nmapm-field select option[selected] { background: var(--nmapm-surface); color: var(--nmapm-text); }
+.nmapm-field select option:hover { background: rgba(255,255,255,0.03); color: var(--nmapm-text); }
+
+/* Edge/IE expand arrow color fallback */
+.nmapm-field select::-ms-expand { color: var(--nmapm-text); }
+
+.nmapm-inline { display:flex; gap:10px; align-items:center; }
+.nmapm-inline .nmapm-btn { white-space:nowrap; }
+
+.nmapm-upload { display:flex; flex-direction:column; gap:8px; }
+.nmapm-upload input[type="file"] { position:absolute; left:-9999px; }
+.nmapm-upload-btn { padding:8px 12px; border-radius:8px; border:1px dashed var(--nmapm-input-border); background:transparent; color:var(--nmapm-text); cursor:pointer; height:44px; display:inline-flex; align-items:center; }
+.nmapm-upload-hint { color:var(--nmapm-muted); font-size:0.85rem; }
+.nmapm-previews { display:flex; gap:8px; margin-top:6px; }
+.nmapm-thumb { width:64px; height:64px; border-radius:8px; overflow:hidden; }
+.nmapm-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+
+.nmapm-section { display:flex; flex-direction:column; gap:12px; grid-column: 1 / -1; }
+
+.nmapm-inventories { display:flex; flex-direction:column; gap:8px; grid-column: 1 / -1; }
+.nmapm-inv-row { display:flex; gap:12px; align-items:center; justify-content:space-between; padding:8px 0; border-top:1px dashed var(--nmapm-divider); }
+.nmapm-inv-controls { display:flex; gap:8px; align-items:center; }
+.nmapm-inv-controls input { width:110px; padding:8px; height:44px; box-sizing:border-box; }
+
+.nmapm-footer { padding:14px 20px; border-top:1px solid var(--nmapm-border); display:flex; gap:12px; align-items:center; justify-content:flex-end; grid-column: 1 / -1; }
+.nmapm-actions { display:flex; gap:10px; align-items:center; margin-left: auto; }
+
+/* Buttons */
+/* Buttons: unify size, font and height to avoid uneven widths/heights */
+.nmapm-btn { padding:0 14px; min-width:96px; height:44px; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; border:1px solid var(--nmapm-border); background:transparent; color:var(--nmapm-text); cursor:pointer; font-size:0.95rem; box-sizing:border-box; }
+.nmapm-btn.primary { background:#19a6d6; color:white; border-color:transparent; }
+.nmapm-btn-ghost { background: var(--nmapm-surface); border:1px dashed var(--nmapm-input-border); color:var(--nmapm-text); }
+
+/* Inline subform used when creating a new inventory inside the modal */
+.nmapm-subform { display:block; margin-top:8px; }
+.nmapm-subform input { padding:8px 10px; border-radius:8px; border:1px solid var(--nmapm-input-border); background:var(--nmapm-input-bg); color:var(--nmapm-text); height:40px; box-sizing:border-box; }
+.nmapm-subform button { height:40px; padding:0 12px; border-radius:8px; }
+
+/* Ensure inline controls don't collapse on small screens */
+.nmapm-subform > div { display:flex; gap:8px; align-items:center; }
+.nmapm-btn.danger { background:#dc2626; color:white; border-color:transparent; }
+
+/* Size helpers: big primary on the right, small danger to avoid accidents */
+.nmapm-btn.big, .nmapm-btn.small { /* normalize big/small to the same baseline so buttons are consistent */
+  padding: 0 14px; height:44px; font-weight:600; border-radius:8px;
+}
+
+/* Defensive: prevent global button width rules from expanding buttons here */
+.nmapm-actions button, .nmapm-actions .nmapm-btn { width: auto !important; max-width: none !important; flex: 0 0 auto !important; }
+
+/* Confirm overlay */
+.nmapm-confirm { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background: rgba(2,6,23,0.5); z-index:1600; }
+.nmapm-confirm-card { background:var(--nmapm-surface); color:var(--nmapm-text); padding:18px; border-radius:10px; box-shadow:0 8px 30px rgba(2,6,23,0.6); width: 420px; max-width:92%; }
+.nmapm-confirm-text { margin-bottom:12px; font-weight:600; }
+.nmapm-confirm-actions { display:flex; gap:8px; justify-content:flex-end; }
+
+/* Small create-inventory modal (overlay) */
+.nmapm-create-modal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background: rgba(2,6,23,0.45); z-index:1650; }
+.nmapm-create-card { background:var(--nmapm-surface); color:var(--nmapm-text); padding:16px 18px; border-radius:10px; box-shadow:0 10px 40px rgba(2,6,23,0.6); width:420px; max-width:92%; }
+.nmapm-create-card input { width:100%; }
+.nmapm-create-actions .nmapm-btn { min-width:88px; }
+
+/* Responsive: collapse to single column on small screens */
+@media (max-width: 860px) {
+  .nmapm-body { grid-template-columns: 1fr; }
+  .nmapm-inline { flex-direction:column; align-items:stretch; }
+  /* On small screens keep actions flow as before (no forced right alignment) */
+  .nmapm-actions { margin-left: 0; justify-content: center; }
+}
+
+/* Small polish */
+.nmapm-field input:focus, .nmapm-field select:focus { outline:2px solid var(--nmapm-focus); box-shadow: 0 4px 14px rgba(25,166,214,0.08); }
+
+/* Accessibility helpers */
+.nmapm-modal:focus { outline:none; }
