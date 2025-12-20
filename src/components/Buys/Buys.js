@@ -1,8 +1,10 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { doc, setDoc, serverTimestamp, updateDoc, increment, getDoc, getDocFromServer } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, updateDoc, increment, getDoc, getDocFromServer, runTransaction } from 'firebase/firestore';
 import { db } from '../../firebase.js';
+import QtyButton from '../UI/QtyButton';
 import { useData } from '../../context/DataProvider.jsx';
 import ProductSearchModal from './ProductSearchModalBuys/ProductSearchModalBuys.js';
+import ImageViewerModal from '../ImageViewerModal/ImageViewerModal';
 import AddProductButton from '../AddProductButton/AddProductButton.js';
 import './Buys.css';
 
@@ -79,6 +81,8 @@ function Buys({ user, initialActiveInventoryId }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [notification, setNotification] = useState({ message: '', type: '' });
   const [isProcessingBuy, setIsProcessingBuy] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerSrc, setViewerSrc] = useState(null);
   const [appSettings, setAppSettings] = useState({ dolarBCV: 0, dolarParalelo: 0 });
 
   const userInteractedRef = useRef(false); // evita sobreescritura tras interacción manual
@@ -754,38 +758,62 @@ function Buys({ user, initialActiveInventoryId }) {
       const totalsCalc = calculateAmounts(cartTotal, appSettings.dolarBCV, appSettings.dolarParalelo);
       const activeInventoryName = inventories.find(i => i.id === activeInventoryId)?.name || '';
 
+      // Prepare a stable pending key so retries use the same buyId
+      const pendingKey = user?.uid ? `buys:pending:${user.uid}` : 'buys:pending:anon';
+      let stored = null;
+      try { stored = JSON.parse(localStorage.getItem(pendingKey) || 'null'); } catch (e) { stored = null; }
+      const stableBuyId = stored?.buyId || buyId;
+      try { localStorage.setItem(pendingKey, JSON.stringify({ buyId: stableBuyId, createdAt: Date.now() })); } catch (e) {}
+
       operationFn = async () => {
-        // Persist custom costs into product docs so the product's cost is replaced
-        // by the cost used in this buy when the user confirmed the purchase.
-        for (const item of cart) {
-          if (!item || !item.docId) continue;
-          if (item.customCost || (item.baseCost !== undefined && Number(item.baseCost) !== Number(item.cost))) {
-            // update product doc; allow failure to bubble so the retry manager can handle it
-            await updateDoc(doc(db, 'products', item.docId), { cost: Number(item.cost || 0), updatedAt: serverTimestamp() });
+        // run a transaction that first checks for an existing history doc to
+        // make the operation idempotent. If the history doc exists we skip
+        // applying inventory/product updates.
+        const buyRef = doc(db, 'history', 'main', 'buys', stableBuyId);
+
+        await runTransaction(db, async (tx) => {
+          const existing = await tx.get(buyRef);
+          if (existing.exists()) {
+            // already applied - nothing to do
+            return;
           }
-        }
-        // update inventory counts
-        await updateDoc(inventoryDocRef, updates);
-        // Note: Buys should not persist product canonical costs here. Keep product
-        // cost unmodified by Buys flows. (Cashier handles canonical cost updates.)
-        // write history
-        await setDoc(doc(db, 'history', 'main', 'buys', buyId), {
-          id: buyId,
-          boughtAt: serverTimestamp(),
-          boughtAtISO: new Date().toISOString(),
-          userId: user?.uid || null,
-          inventoryId: activeInventoryId,
-          inventoryName: activeInventoryName,
-          items,
-          totals: {
-            bs: Math.max(0, Math.round(totalsCalc.bs)),
-            usdAdjusted: to2(totalsCalc.usdAdjusted),
-            usdInt: Math.max(0, Math.floor(totalsCalc.usdInt)),
-            bsDecimals: Math.max(0, Math.round(totalsCalc.bsDecimals)),
-          },
-          ratesUsed: { bcv: to2(appSettings.dolarBCV), paralelo: to2(appSettings.dolarParalelo) },
-          summary: { itemCount: cart.reduce((n, i) => n + i.quantity, 0), productLines: cart.length }
+
+          // Persist product cost changes inside the transaction so retries
+          // don't re-apply them twice. If a product doc doesn't exist the
+          // transaction will fail and the retry manager will handle it.
+          for (const item of cart) {
+            if (!item || !item.docId) continue;
+            if (item.customCost || (item.baseCost !== undefined && Number(item.baseCost) !== Number(item.cost))) {
+              const prodRef = doc(db, 'products', item.docId);
+              tx.update(prodRef, { cost: Number(item.cost || 0), updatedAt: serverTimestamp() });
+            }
+          }
+
+          // apply inventory increments
+          tx.update(inventoryDocRef, updates);
+
+          // write buy history
+          tx.set(buyRef, {
+            id: stableBuyId,
+            boughtAt: serverTimestamp(),
+            boughtAtISO: new Date().toISOString(),
+            userId: user?.uid || null,
+            inventoryId: activeInventoryId,
+            inventoryName: activeInventoryName,
+            items,
+            totals: {
+              bs: Math.max(0, Math.round(totalsCalc.bs)),
+              usdAdjusted: to2(totalsCalc.usdAdjusted),
+              usdInt: Math.max(0, Math.floor(totalsCalc.usdInt)),
+              bsDecimals: Math.max(0, Math.round(totalsCalc.bsDecimals)),
+            },
+            ratesUsed: { bcv: to2(appSettings.dolarBCV), paralelo: to2(appSettings.dolarParalelo) },
+            summary: { itemCount: cart.reduce((n, i) => n + i.quantity, 0), productLines: cart.length }
+          });
         });
+
+        // success: clear pending marker
+        try { localStorage.removeItem(pendingKey); } catch (e) {}
       };
 
       // Try the operation once now; if it fails we'll trigger the retry manager in catch
@@ -860,13 +888,24 @@ function Buys({ user, initialActiveInventoryId }) {
                 </div>
                 <div className="cart-body">
                   {cart.length === 0 && <div className="cart-empty">Añade productos para empezar una compra.</div>}
-                  {cart.map(item => {
+                    {cart.map(item => {
                     const unit = { bs: item.costBs ?? calculateAmounts(item.cost, appSettings.dolarBCV, appSettings.dolarParalelo).bs, usdAdjusted: item.costUsdAdjusted ?? calculateAmounts(item.cost, appSettings.dolarBCV, appSettings.dolarParalelo).usdAdjusted, bsDecimals: item.costBsDecimals ?? calculateAmounts(item.cost, appSettings.dolarBCV, appSettings.dolarParalelo).bsDecimals };
                     const subtotalUSD = Number(item.cost || 0) * Number(item.quantity || 0);
                     const sub = calculateAmounts(subtotalUSD, appSettings.dolarBCV, appSettings.dolarParalelo);
                     return (
                       <div className="cart-row" key={item.docId}>
                         <div className="cart-cell product" data-label="Producto">
+                          {/* Thumbnail that opens viewer when clicked */}
+                          {(item.thumbnailWebp || item.thumbnail || item.image) && (
+                            <button
+                              type="button"
+                              className="cart-thumb-btn"
+                              onClick={(e) => { e.stopPropagation(); const src = item.thumbnailWebp || item.thumbnail || item.image; setViewerSrc(src); setViewerOpen(true); }}
+                              aria-label={`Ver imagen de ${item.name}`}
+                            >
+                              <img className="cart-thumb" src={item.thumbnailWebp || item.thumbnail || item.image} alt={item.name} />
+                            </button>
+                          )}
                           <span className="cart-name">{item.name}</span>
                           {item.customCost && <small style={{ color: 'var(--c-accent)' }}>Costo personalizado</small>}
                         </div>
@@ -884,9 +923,9 @@ function Buys({ user, initialActiveInventoryId }) {
                         </div>
                         <div className="cart-cell quantity" data-label="Cant.">
                           <div className="qty-control" role="group" aria-label={`Cantidad de ${item.name}`}>
-                            <button type="button" className="qty-icon" onClick={() => decrementQuantity(item.docId)} aria-label={`Restar 1 a ${item.name}`} disabled={item.quantity <= 1}>−</button>
+                            <QtyButton variant="minus" onClick={() => decrementQuantity(item.docId)} ariaLabel={`Restar 1 a ${item.name}`} disabled={item.quantity <= 1} />
                             <span className="qty-number" aria-live="polite">{item.quantity}</span>
-                            <button type="button" className="qty-icon" onClick={() => incrementQuantity(item.docId)} aria-label={`Sumar 1 a ${item.name}`}>+</button>
+                            <QtyButton variant="plus" onClick={() => incrementQuantity(item.docId)} ariaLabel={`Sumar 1 a ${item.name}`} />
                           </div>
                         </div>
                         <div className="cart-cell subtotal" data-label="Subtotal">
@@ -939,6 +978,8 @@ function Buys({ user, initialActiveInventoryId }) {
       <AddProductButton onClick={() => setIsModalOpen(true)} />
 
       <ProductSearchModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAddProduct={handleAddProductToCart} allProducts={products} inventories={inventories} activeInventoryId={activeInventoryId} onInventoryChange={handleInventoryChange} appSettings={appSettings} cart={cart} reservedMap={{}} />
+
+      <ImageViewerModal isOpen={viewerOpen} onClose={() => { setViewerOpen(false); setViewerSrc(null); }} src={viewerSrc} alt="Imagen" />
     </>
   );
 }

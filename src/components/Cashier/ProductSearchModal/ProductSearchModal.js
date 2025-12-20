@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from 'react';
 import './ProductSearchModal.css';
+import { createSearcher } from '../../../utils/smartSearch';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '../../../firebase.js';
 
 /*
   Mejoras:
@@ -21,11 +24,15 @@ function ProductSearchModal({
    activeInventoryId,
    onInventoryChange,
    appSettings,
+   user,
    cart, /* carrito de la pestaña activa */
-   reservedMap = {} /* mapa de reservas por otras pestañas: { docId: qty } */
+   reservedMap = {}, /* mapa de reservas por otras pestañas: { docId: qty } */
+   autoCloseAfterAdd = false,
  }) {
   const [rawSearch, setRawSearch] = useState('');
   const [search, setSearch] = useState('');
+  // Default smart search OFF unless explicitly enabled in stored prefs
+  const [useSmartSearch, setUseSmartSearch] = useState(false);
   const [focusIndex, setFocusIndex] = useState(-1);
   const [modalNotice, setModalNotice] = useState(null); // {message,type}
   const [qtyDialog, setQtyDialog] = useState(null); // { product, quantity, max }
@@ -64,6 +71,32 @@ function ProductSearchModal({
       return () => clearTimeout(t);
     }
   }, [isOpen]);
+
+  // Load user preference for smart search when modal opens
+  useEffect(() => {
+    let mounted = true;
+    const loadPref = async () => {
+      try {
+        // if user prop provided, try to read from users/{uid}.prefs.useSmartProductSearch
+        if (typeof user === 'object' && user?.uid) {
+          const r = await getDoc(doc(db, 'users', user.uid));
+          if (!mounted) return;
+          const data = r.exists() ? r.data() : {};
+          const prefs = data.prefs || {};
+          // Only enable when explicitly true in prefs
+          if (prefs && prefs.useSmartProductSearch === true) setUseSmartSearch(true);
+        } else {
+          // anonymous or no user: read from localStorage
+          const raw = localStorage.getItem('prefs:useSmartProductSearch');
+          if (raw !== null) setUseSmartSearch(raw === '1');
+        }
+      } catch (e) {
+        // ignore and keep default
+      }
+    };
+    if (isOpen) loadPref();
+    return () => { mounted = false; };
+  }, [isOpen, user]);
 
   // Escape cierra
   useEffect(() => {
@@ -119,14 +152,27 @@ function ProductSearchModal({
     return +(bs / bcv);
   }, [appSettings]);
 
-  // Filtro
+  // Filtro: usa smartSearch preprocesado para coincidencias tolerantes
+  const searcher = useMemo(() => {
+    // keys: include common searchable fields present on product objects
+    return createSearcher(productsWithStock || [], { keys: ['name', 'id', 'docId'], nameKey: 'name', maxResults: 800, minScore: 8 });
+  }, [productsWithStock]);
+
   const filtered = useMemo(() => {
     if (!search.trim()) return productsWithStock;
     const q = search.toLowerCase();
-    return productsWithStock.filter(p =>
-      p.name?.toLowerCase().includes(q) || String(p.id).includes(q)
-    );
-  }, [search, productsWithStock]);
+    if (!useSmartSearch) {
+      // simple includes-based search (older behaviour)
+      return productsWithStock.filter(p => (p.name || '').toLowerCase().includes(q) || String(p.id).includes(q) || (p.docId && String(p.docId).includes(q)));
+    }
+    try {
+      const results = searcher.search(search, { maxResults: 800, minScore: 6 });
+      return results.map(r => r.item);
+    } catch (e) {
+      // fallback to simple search if something goes wrong
+      return productsWithStock.filter(p => (p.name || '').toLowerCase().includes(q) || String(p.id).includes(q));
+    }
+  }, [search, productsWithStock, searcher, useSmartSearch]);
 
   // Ajuste focus si cambia longitud
   useEffect(() => {
@@ -261,6 +307,14 @@ function ProductSearchModal({
     setRawSearch('');
     setSearch('');
     setFocusIndex(-1);
+    // If preference enabled, close modal immediately after add
+    if (autoCloseAfterAdd) {
+      requestAnimationFrame(() => {
+        confirmingRef.current = false;
+        try { onClose(); } catch (e) { /* ignore */ }
+      });
+      return;
+    }
 
     requestAnimationFrame(() => {
       inputRef.current?.focus();
@@ -414,7 +468,33 @@ function ProductSearchModal({
 
         <header className="lps-header">
           <h2 className="lps-title">Añadir Producto</h2>
-          <button type="button" className="lps-close" aria-label="Cerrar" onClick={onClose}>×</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem' }}>
+              <input
+                type="checkbox"
+                checked={!!useSmartSearch}
+                onChange={async (e) => {
+                  const val = !!e.target.checked;
+                  setUseSmartSearch(val);
+                  try {
+                    if (typeof user === 'object' && user?.uid) {
+                      // persist under users/{uid}.prefs.useSmartProductSearch
+                      const uRef = doc(db, 'users', user.uid);
+                      // merge prefs safely
+                      await setDoc(uRef, { prefs: { useSmartProductSearch: val } }, { merge: true });
+                    } else {
+                      localStorage.setItem('prefs:useSmartProductSearch', val ? '1' : '0');
+                    }
+                  } catch (err) {
+                    // Don't block the UI; show ephemeral notice
+                    console.debug('Could not persist smartSearch pref', err);
+                  }
+                }}
+              />
+              <span style={{ fontSize: '0.9rem' }}>Búsqueda inteligente</span>
+            </label>
+            <button type="button" className="lps-close" aria-label="Cerrar" onClick={onClose}>×</button>
+          </div>
         </header>
 
         <div className="lps-filters">
@@ -535,11 +615,12 @@ const ProductRow = React.memo(function ProductRow({
       onKeyDown={handleKey}
     >
       <div className="lps-thumb">
-        {product.image ? (
+        { (product.thumbnailWebp || product.thumbnail || product.image) ? (
           <img
-            src={product.image}
+            src={product.thumbnailWebp || product.thumbnail || product.image}
             alt={product.name}
             loading="lazy"
+            // In the search modal we don't open the viewer on image click; keep it inert
             onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
           />
         ) : (

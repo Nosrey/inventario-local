@@ -94,24 +94,26 @@ function History() {
   // Nuevo: modal / candidato de reembolso
   const [refundCandidate, setRefundCandidate] = useState(null);
   const [showRefundModal, setShowRefundModal] = useState(false);
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
 
   // Listener real-time últimas ventas/compras según modo
   useEffect(() => {
     setLoadingLive(true);
-  const colName = mode === 'sells' ? 'sells' : 'buys';
+  const colName = mode === 'sells' ? 'sells' : (mode === 'buys' ? 'buys' : 'transfers');
   const ref = collection(db, 'history', 'main', colName);
-    const timeField = mode === 'sells' ? 'soldAt' : 'boughtAt';
+    const timeField = mode === 'sells' ? 'soldAt' : (mode === 'buys' ? 'boughtAt' : 'transferredAt');
     const qLive = query(ref, orderBy(timeField, 'desc'), limit(PAGE_SIZE_LIVE));
 
     const unsub = onSnapshot(qLive, (snap) => {
       const next = snap.docs.map(docSnap => {
         const data = docSnap.data();
         // normalize timestamp to soldAt for backward compatibility in UI
-        const ts = data.soldAt || data.boughtAt || null;
+        // for transfers use transferredAt
+        const ts = data.soldAt || data.boughtAt || data.transferredAt || null;
         return {
           id: docSnap.id,
           soldAt: ts,
-          // record original collection type so we can tell buys vs sells reliably
+          // record original collection type so we can tell buys/sells/transfers reliably
           type: colName,
           ...data
         };
@@ -138,9 +140,9 @@ function History() {
     }
     try {
       setLoadingMore(true);
-      const colName = mode === 'sells' ? 'sells' : 'buys';
-      const ref = collection(db, 'history', 'main', colName);
-      const timeField = mode === 'sells' ? 'soldAt' : 'boughtAt';
+  const colName = mode === 'sells' ? 'sells' : (mode === 'buys' ? 'buys' : 'transfers');
+  const ref = collection(db, 'history', 'main', colName);
+  const timeField = mode === 'sells' ? 'soldAt' : (mode === 'buys' ? 'boughtAt' : 'transferredAt');
       const qOlder = query(
         ref,
         orderBy(timeField, 'desc'),
@@ -158,7 +160,7 @@ function History() {
       const batch = [];
       snap.forEach(docSnap => {
         const data = docSnap.data();
-        const ts = data.soldAt || data.boughtAt || null;
+        const ts = data.soldAt || data.boughtAt || data.transferredAt || null;
         batch.push({ id: docSnap.id, soldAt: ts, type: colName, ...data });
       });
 
@@ -203,7 +205,14 @@ function History() {
         if (dateFromMs && ms < dateFromMs) return false;
         if (dateToMs && ms > dateToMs) return false;
       }
-      if (filterInventory !== 'all' && s.inventoryId !== filterInventory) return false;
+      if (filterInventory !== 'all') {
+        // for transfers match either fromInventoryId or toInventoryId
+        if (s.type === 'transfers' || s.transferredAt) {
+          if (s.fromInventoryId !== filterInventory && s.toInventoryId !== filterInventory) return false;
+        } else {
+          if (s.inventoryId !== filterInventory) return false;
+        }
+      }
       if (filterMethod !== 'all' && s.paymentMethod !== filterMethod) return false;
       if (term) {
         const haystack = [
@@ -341,8 +350,8 @@ function History() {
       const batch = writeBatch(db);
 
   // Decide by inspecting the sale object rather than relying on `mode`.
-  // Prefer an explicit `type` (set when loading docs) if present.
-  const type = sale.type || (sale.boughtAt ? 'buys' : (sale.soldAt ? 'sells' : null));
+  // Prefer an explicit `type` (set when loading docs) if present. Detect transfers explicitly.
+  const type = sale.type || (sale.transferredAt ? 'transfers' : (sale.boughtAt ? 'buys' : (sale.soldAt ? 'sells' : null)));
 
   if (type === 'sells' || (type === null && (mode === 'sells' || sale.soldAt))) {
         // sell refund logic
@@ -364,7 +373,7 @@ function History() {
           batch.update(inventoryRef, { [fieldPath]: increment(Number(it.quantity || 0)) });
         });
 
-      } else {
+  } else if (type === 'buys' || (type === null && (mode === 'buys' || sale.boughtAt))) {
         // buy return logic: mark buy as refunded/returned and remove the stock that was added
         const buyRef = doc(db, 'history', 'main', 'buys', sale.id);
         batch.update(buyRef, { refunded: true, refundedAt: serverTimestamp() });
@@ -383,7 +392,34 @@ function History() {
           // reverse the buy: decrement the quantities that were added when the buy was recorded
           batch.update(inventoryRef, { [fieldPath]: increment(Number(it.quantity || 0) * -1) });
         });
-      }
+
+  } else if (type === 'transfers' || sale.transferredAt) {
+        // transfers: revert the transferred quantities (move back from dest -> origin)
+        const transferRef = doc(db, 'history', 'main', 'transfers', sale.id);
+        batch.update(transferRef, { refunded: true, refundedAt: serverTimestamp() });
+
+        // ensure we have inventory ids
+        if (!sale.fromInventoryId || !sale.toInventoryId) {
+          throw new Error('Transferencia sin inventoryId en from/to, no se puede revertir.');
+        }
+
+        const fromInvRef = doc(db, 'inventories', sale.fromInventoryId);
+        const toInvRef = doc(db, 'inventories', sale.toInventoryId);
+
+        (sale.items || []).forEach(it => {
+          if (!it.productDocId) {
+            console.warn('performRefund (transfer): item sin productDocId, se omite', it);
+            return;
+          }
+          const fieldPath = `products.${it.productDocId}.quantity`;
+          // revert: add back to origin (from) and subtract from destination (to)
+          batch.update(fromInvRef, { [fieldPath]: increment(Number(it.quantity || 0)) });
+          batch.update(toInvRef, { [fieldPath]: increment(Number(it.quantity || 0) * -1) });
+        });
+
+  } else {
+        throw new Error('Tipo de historial no soportado para revertir.');
+  }
 
       await batch.commit();
 
@@ -409,7 +445,7 @@ function History() {
         return next;
       });
     }
-  }, [refundCandidate]);
+  }, [refundCandidate, mode]);
 
   // We now rely on `usersMap` provided by DataProvider (globalUsersMap) which keeps all users in cache
 
@@ -420,21 +456,46 @@ function History() {
           <h1>Historial</h1>
           <p className="muted">Registros recientes en tiempo real. Carga más para ver registros antiguos.</p>
         </div>
-        <div className="history-summary">
+  <div className="history-summary">
           <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
             <label style={{ fontSize: '0.9rem' }}>Modo:</label>
             <select value={mode} onChange={e => { setMode(e.target.value); setOlderSales([]); setCursor(null); }}>
               <option value="sells">Ventas</option>
               <option value="buys">Compras</option>
+              <option value="transfers">Transferencias</option>
             </select>
           </div>
-          <div><strong>{summary.sales}</strong><span>{mode === 'sells' ? 'Ventas' : 'Compras'}</span></div>
+          <div><strong>{summary.sales}</strong><span>{mode === 'sells' ? 'Ventas' : (mode === 'buys' ? 'Compras' : 'Transferencias')}</span></div>
           <div><strong>{summary.lines}</strong><span>Líneas</span></div>
           <div><strong>{summary.units}</strong><span>Ítems</span></div>
           <div><strong>{formatBs(summary.totalBs)}</strong><span>Total Bs</span></div>
           <div><strong>{formatUSD(summary.totalUsdAdj)}</strong><span>Total USD</span></div>
+          {/* Button visible only on mobile when summary is collapsed */}
+          <div className="summary-more-btn-wrap">
+            <button className="outline" onClick={() => setShowSummaryModal(true)}>Mostrar info completa</button>
+          </div>
         </div>
       </header>
+
+      {showSummaryModal && (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal">
+            <h3>Estadísticas completas</h3>
+            <div className="modal-body">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                <div><strong>{summary.sales}</strong><div className="muted">{mode === 'sells' ? 'Ventas' : (mode === 'buys' ? 'Compras' : 'Transferencias')}</div></div>
+                <div><strong>{summary.lines}</strong><div className="muted">Líneas</div></div>
+                <div><strong>{summary.units}</strong><div className="muted">Ítems</div></div>
+                <div><strong>{formatBs(summary.totalBs)}</strong><div className="muted">Total Bs</div></div>
+                <div style={{ gridColumn: '1 / -1' }}><strong>{formatUSD(summary.totalUsdAdj)}</strong><div className="muted">Total USD</div></div>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button className="outline" onClick={() => setShowSummaryModal(false)}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <aside className="history-filters">
         <div className="filter-group">
@@ -499,13 +560,15 @@ function History() {
           <div className="h-col date">Fecha</div>
           <div className="h-col customer">{mode === 'sells' ? 'Cliente' : 'Usuario'}</div>
           <div className="h-col inv">Inventario</div>
-          {mode === 'sells'
-            ? <div className="h-col method">Método</div>
-            : <div className="h-col method" style={{ visibility: 'hidden' }}></div>}
+          {mode === 'sells' ? (
+            <div className="h-col method">Método</div>
+          ) : (mode === 'buys' ? (
+            <div className="h-col method" style={{ visibility: 'hidden' }}></div>
+          ) : null)}
           <div className="h-col lines">Líneas</div>
           <div className="h-col items">Ítems</div>
-          <div className="h-col totalbs">Total Bs</div>
-          <div className="h-col totalusd">Total USD</div>
+          {mode !== 'transfers' && <div className="h-col totalbs">Total Bs</div>}
+          {mode !== 'transfers' && <div className="h-col totalusd">Total USD</div>}
           <div className="h-col expand"></div>
         </div>
         <div className="history-rows">
@@ -524,20 +587,26 @@ function History() {
               >
                 <div className="h-col date">{formatDateList(sale.soldAt)}</div>
                 <div className="h-col customer">{mode === 'sells' ? (sale.customer?.name || '—') : resolveUserDisplay(sale)}</div>
-                <div className="h-col inv" title={sale.inventoryName}>{sale.inventoryName || sale.inventoryId}</div>
+                <div className="h-col inv" title={sale.inventoryName || (sale.fromInventoryName && sale.toInventoryName ? `${sale.fromInventoryName} → ${sale.toInventoryName}` : '')}>{
+                  sale.type === 'transfers' || sale.transferredAt ? (
+                    <span>{(sale.fromInventoryName || sale.fromInventoryId) + ' → ' + (sale.toInventoryName || sale.toInventoryId)}</span>
+                  ) : (
+                    sale.inventoryName || sale.inventoryId
+                  )
+                }</div>
                 {mode === 'sells' ? (
                   <div className="h-col method">
                     <span className={`pm-badge pm-${sale.paymentMethod || 'na'}`}>
                       {(sale.paymentMethod || '').replace('_', ' ') || '—'}
                     </span>
                   </div>
-                ) : (
+                ) : (mode === 'buys' ? (
                   <div className="h-col method" style={{ visibility: 'hidden' }}></div>
-                )}
+                ) : null)}
                 <div className="h-col lines">{sale.summary?.productLines ?? sale.items?.length ?? 0}</div>
                 <div className="h-col items">{sale.summary?.itemCount ?? 0}</div>
-                <div className="h-col totalbs">{formatBs(sale.totals?.bs)}</div>
-                <div className="h-col totalusd">{mode === 'sells' ? formatUSD(sale.totals?.usdAdjusted) : formatUSD((sale.items || []).reduce((acc,it) => acc + ((Number(it.unitCostUSD)||0) * (Number(it.quantity)||0)), 0))}</div>
+                {mode !== 'transfers' && <div className="h-col totalbs">{formatBs(sale.totals?.bs)}</div>}
+                {mode !== 'transfers' && <div className="h-col totalusd">{mode === 'sells' ? formatUSD(sale.totals?.usdAdjusted) : formatUSD((sale.items || []).reduce((acc,it) => acc + ((Number(it.unitCostUSD)||0) * (Number(it.quantity)||0)), 0))}</div>}
                 <div className="h-col expand">
                   <button
                     className="outline secondary small-btn"
@@ -557,8 +626,8 @@ function History() {
                           <div><strong>Cédula:</strong> {sale.customer?.id || '—'}</div>
                           <div><strong>Teléfono:</strong> {sale.customer?.phone || '—'}</div>
                           <div><strong>Dirección:</strong> {sale.customer?.address || '—'}</div>
-                          {sale.customer?.notes && (
-                            <div className="notes"><strong>Notas:</strong> {sale.customer.notes}</div>
+                          {sale.notes && (
+                            <div className="notes"><strong>Notas:</strong> {sale.notes}</div>
                           )}
                         </>
                       ) : (
@@ -567,8 +636,20 @@ function History() {
                         </>
                       )}
                       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
-                        {/* For sells show 'Deshacer venta', for buys show 'Devolver compra'. Both use the same refund modal/flow. */}
-                        {!isRefunded ? (
+                        {/* For sells show 'Deshacer venta', for buys show 'Devolver compra'. For transfers show 'Deshacer transferencia'. */}
+                        {sale.type === 'transfers' || sale.transferredAt ? (
+                          !isRefunded ? (
+                            <button
+                              className="outline danger small-btn"
+                              disabled={processingRefunds.has(sale.id)}
+                              onClick={() => openRefundModal(sale)}
+                            >
+                              {processingRefunds.has(sale.id) ? 'Procesando...' : 'Deshacer transferencia'}
+                            </button>
+                          ) : (
+                            <div className="refunded-label">Transferencia revertida</div>
+                          )
+                        ) : (!isRefunded ? (
                           <button
                             className="outline danger small-btn"
                             disabled={processingRefunds.has(sale.id)}
@@ -578,48 +659,75 @@ function History() {
                           </button>
                         ) : (
                           <div className="refunded-label">{mode === 'sells' ? 'Venta reembolsada' : 'Compra devuelta'}</div>
-                        )}
+                        ))}
                       </div>
                     </div>
-                    <table className="items-table">
-                      <thead>
-                        <tr>
-                          <th>Producto</th>
-                          <th>Cant.</th>
-                          <th>USD Unit</th>
-                          <th>Bs Unit</th>
-                          <th>Subtotal Bs</th>
-                          <th>Subtotal USD</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(sale.items || []).map(it => (
-                          <tr key={it.productDocId || `${it.name}-${Math.random()}`}>
-                            <td>{it.name}</td>
-                            <td>{it.quantity}</td>
-                            {mode === 'sells' ? (
-                              <>
-                                <td>{formatUSD(it.unitPriceUSD)}</td>
-                                <td>{formatBs(it.unitPriceBs)}</td>
-                                <td>{formatBs(it.subtotalBs)}</td>
-                                <td>{formatUSD(it.subtotalUsdAdjusted)}</td>
-                              </>
-                            ) : (
-                              // buys: show raw unitCost and subtotal directly from buy doc
-                              <>
-                                <td>{formatUSD(it.unitCostUSD ?? it.unitCostUSD)}</td>
-                                <td>{formatBs(it.unitCostBs ?? it.unitCostBs)}</td>
-                                <td>{formatBs(it.subtotalBs ?? it.subtotalBs)}</td>
-                                {/* Show USD subtotal for buys as unitCostUSD * quantity (rounded to 2 decimals)
-                                    so it matches the displayed USD unit value instead of the adjusted USD computed
-                                    via exchange rate conversions. */}
-                                <td>{formatUSD(Math.round(((Number(it.unitCostUSD) || 0) * (Number(it.quantity) || 0)) * 100) / 100)}</td>
-                              </>
-                            )}
+                    {sale.type === 'transfers' || sale.transferredAt ? (
+                      <div className="transfer-detail">
+                        <div><strong>Desde:</strong> {sale.fromInventoryName || sale.fromInventoryId || '—'}</div>
+                        <div><strong>Hacia:</strong> {sale.toInventoryName || sale.toInventoryId || '—'}</div>
+                        <table className="items-table">
+                          <thead>
+                            <tr>
+                              <th>Producto</th>
+                              <th>Cant.</th>
+                              <th>Origen antes → después</th>
+                              <th>Destino antes → después</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(sale.items || []).map(it => (
+                              <tr key={it.productDocId || `${it.name}-${Math.random()}`}>
+                                <td>{it.name}</td>
+                                <td>{it.quantity}</td>
+                                <td>{(it.originBefore ?? '—') + ' → ' + (it.originAfter ?? '—')}</td>
+                                <td>{(it.destBefore ?? '—') + ' → ' + (it.destAfter ?? '—')}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <table className="items-table">
+                        <thead>
+                          <tr>
+                            <th>Producto</th>
+                            <th>Cant.</th>
+                            <th>USD Unit</th>
+                            <th>Bs Unit</th>
+                            <th>Subtotal Bs</th>
+                            <th>Subtotal USD</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {(sale.items || []).map(it => (
+                            <tr key={it.productDocId || `${it.name}-${Math.random()}`}>
+                              <td>{it.name}</td>
+                              <td>{it.quantity}</td>
+                              {mode === 'sells' ? (
+                                <>
+                                  <td>{formatUSD(it.unitPriceUSD)}</td>
+                                  <td>{formatBs(it.unitPriceBs)}</td>
+                                  <td>{formatBs(it.subtotalBs)}</td>
+                                  <td>{formatUSD(it.subtotalUsdAdjusted)}</td>
+                                </>
+                              ) : (
+                                // buys: show raw unitCost and subtotal directly from buy doc
+                                <>
+                                  <td>{formatUSD(it.unitCostUSD ?? it.unitCostUSD)}</td>
+                                  <td>{formatBs(it.unitCostBs ?? it.unitCostBs)}</td>
+                                  <td>{formatBs(it.subtotalBs ?? it.subtotalBs)}</td>
+                                  {/* Show USD subtotal for buys as unitCostUSD * quantity (rounded to 2 decimals)
+                                      so it matches the displayed USD unit value instead of the adjusted USD computed
+                                      via exchange rate conversions. */}
+                                  <td>{formatUSD(Math.round(((Number(it.unitCostUSD) || 0) * (Number(it.quantity) || 0)) * 100) / 100)}</td>
+                                </>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
                     <div className="rates-used">
                       <small>Tasas usadas: BCV {sale.ratesUsed?.bcv} | Paralelo {sale.ratesUsed?.paralelo}</small>
                     </div>
@@ -658,11 +766,13 @@ function History() {
           >
             <h3 id="refund-modal-title">{mode === 'sells' ? 'Confirmar deshacer venta' : 'Confirmar devolver compra'}</h3>
             <p className="modal-body">
-              {mode === 'sells' ? (
+              {refundCandidate.type === 'transfers' || refundCandidate.transferredAt ? (
+                <>¿Deseas revertir la transferencia realizada el <strong>{formatDateModal(refundCandidate.transferredAt)}</strong> y mover las existencias de vuelta al inventario origen?</>
+              ) : (mode === 'sells' ? (
                 <>¿Deseas marcar la venta realizada el <strong>{formatDateModal(refundCandidate.soldAt)}</strong>{refundCandidate.totals?.bs ? ` por ${formatBs(refundCandidate.totals.bs)}` : ''} como reembolsada y devolver las existencias al inventario?</>
               ) : (
                 <>¿Deseas marcar la compra realizada el <strong>{formatDateModal(refundCandidate.boughtAt)}</strong>{refundCandidate.totals?.bs ? ` por ${formatBs(refundCandidate.totals.bs)}` : ''} como devuelta y quitar las existencias del inventario?</>
-              )}
+              ))}
               <br/>Esta acción no se podrá deshacer.
             </p>
             <div className="modal-actions">
@@ -674,7 +784,7 @@ function History() {
                 onClick={performRefund}
                 disabled={processingRefunds.has(refundCandidate.id)}
               >
-                {processingRefunds.has(refundCandidate.id) ? 'Procesando...' : (mode === 'sells' ? 'Deshacer venta' : 'Devolver compra')}
+                {processingRefunds.has(refundCandidate.id) ? 'Procesando...' : (refundCandidate.type === 'transfers' || refundCandidate.transferredAt ? 'Deshacer transferencia' : (mode === 'sells' ? 'Deshacer venta' : 'Devolver compra'))}
               </button>
             </div>
           </div>

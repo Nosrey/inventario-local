@@ -1,0 +1,52 @@
+/* Contenedor principal: posiciona el botón absolutamente sin afectar el layout */
+.search-bar-container {
+    position: relative;
+    margin-bottom: 1.5rem;
+    width: 100%;
+}
+
+.search-input {
+    margin-bottom: 0 !important; /* Anula el margen inferior predeterminado de Pico */
+}
+
+/* Estilos personalizados para el botón de limpiar: solo posición y tamaño, Pico maneja el resto */
+.search-clear-btn {
+    position: absolute;
+    right: 10px;
+    top: 0;
+    bottom: 0;
+    margin: auto 0;
+    padding: 0.2rem; /* Más compacto */
+    border-radius: 50%;
+    font-size: 1rem;
+    line-height: 1;
+    height: 2rem; /* Ajusta según el alto de tu input */
+    width: 2rem;  /* Ajusta según el alto de tu input */
+    display: inline-flex !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    align-items: center;
+    justify-content: center;
+}
+
+.search-bar-container input[type="search"] {
+    padding-right: 2.5rem; /* Un poco más que el ancho del botón */
+}
+
+/* Hover personalizado: oscurece el borde (compatible con Pico) */
+.search-clear-btn:hover {
+    border-color: var(--color-contrast-lower);
+}
+
+/* Focus personalizado: resalta con outline (accesible y compatible) */
+.search-clear-tn:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+/* Media query para móviles: ajusta posición si es necesario */
+@media (max-width: 768px) {
+    .search-clear-btn {
+        right: 12px; /* Ajuste para móviles */
+    }
+}

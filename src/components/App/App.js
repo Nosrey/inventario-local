@@ -4,6 +4,7 @@ import Inventory from '../Inventory/Inventory';
 import Navbar from '../Navbar/Navbar';
 import Buys from '../Buys/Buys';
 import Cashier from '../Cashier/Cashier';
+import Transfers from '../Transfers/Transfers';
 import Settings from '../Settings/Settings';
 import History from '../History/History.js';
 
@@ -43,6 +44,9 @@ function App({ user, onLogout, initialActiveInventoryId }) {
                 user={user}
                 initialActiveInventoryId={initialActiveInventoryId}
               />
+            </Route>
+            <Route path="/transfers">
+              <Transfers user={user} />
             </Route>
             <Route path="/history">
               <History />

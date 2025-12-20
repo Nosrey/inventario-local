@@ -1,0 +1,33 @@
+:root{
+  --qty-btn-size: 36px;
+  --qty-btn-bg: transparent;
+  --qty-btn-border: rgba(0,0,0,0.08);
+  --qty-btn-color: var(--c-text);
+}
+@media (prefers-color-scheme: dark){
+  :root{ --qty-btn-border: rgba(255,255,255,0.06); }
+}
+
+.qty-icon.btn-svg{
+  width: var(--qty-btn-size);
+  height: var(--qty-btn-size);
+  min-width: var(--qty-btn-size);
+  min-height: var(--qty-btn-size);
+  padding: 6px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--qty-btn-border);
+  background: var(--qty-btn-bg);
+  color: var(--qty-btn-color);
+  cursor: pointer;
+  transition: background 120ms, transform 80ms, color 120ms;
+  box-sizing: border-box;
+}
+
+.qty-icon.btn-svg svg{ width: 18px; height: 18px; display:block }
+
+.qty-icon.btn-svg:hover:not(:disabled){ background: var(--c-surface); transform: translateY(-1px); }
+.qty-icon.btn-svg:active:not(:disabled){ transform: translateY(0); }
+.qty-icon.btn-svg:disabled, .qty-icon.btn-svg.disabled{ opacity: 0.5; cursor: not-allowed }

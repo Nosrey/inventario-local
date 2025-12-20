@@ -89,10 +89,17 @@ function Navbar({ title, rightContent, onLogout, user }) {
           </li>
         )}
 
-        {accessLevel > 1 && (
+        {accessLevel >= 3 && (
           <li>
             <NavLink to="/history" role="button" className="contrast outline" activeStyle={activeStyle}>
               Historial
+            </NavLink>
+          </li>
+        )}
+        {accessLevel > 1 && (
+          <li>
+            <NavLink to="/transfers" role="button" className="contrast outline" activeStyle={activeStyle}>
+              Transferencias
             </NavLink>
           </li>
         )}
@@ -141,10 +148,17 @@ function Navbar({ title, rightContent, onLogout, user }) {
               </li>
             )}
 
-            {accessLevel > 1 && (
+            {accessLevel >= 3 && (
               <li>
                 <NavLink to="/history" role="button" className="contrast outline" onClick={toggleMenu} activeStyle={activeStyle}>
                   Historial
+                </NavLink>
+              </li>
+            )}
+            {accessLevel > 1 && (
+              <li>
+                <NavLink to="/transfers" role="button" className="contrast outline" onClick={toggleMenu} activeStyle={activeStyle}>
+                  Transferencias
                 </NavLink>
               </li>
             )}

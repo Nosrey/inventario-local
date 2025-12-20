@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './NewModalAddProductModal.css';
+import ImageViewerModal from '../ImageViewerModal/ImageViewerModal';
 
 function NewModalAddProductModal({
   isOpen,
@@ -21,23 +22,71 @@ function NewModalAddProductModal({
   const [selectedInventory, setSelectedInventory] = useState('');
   const [inventoryQuantities, setInventoryQuantities] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
+  const [uploadProgress, setUploadProgress] = useState({}); // { fileIndex: { variant: percent } }
+  const [isUploading, setIsUploading] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerSrc, setViewerSrc] = useState('');
   const fileRef = useRef(null);
   const modalRef = useRef(null);
+  const [notification, setNotification] = useState({ message: '', type: '' });
+
+  const showNotification = (message, type = 'error', duration = 4000) => {
+    setNotification({ message, type });
+    try { window.clearTimeout(showNotification._t); } catch (e) {}
+    showNotification._t = window.setTimeout(() => setNotification({ message: '', type: '' }), duration);
+  };
+
+  const clearFileInputAndPreviews = () => {
+    try {
+      if (fileRef.current) {
+        fileRef.current.value = '';
+      }
+    } catch (e) {}
+    setImagePreviews(prev => {
+      prev.forEach(p => p.url && URL.revokeObjectURL(p.url));
+      return [];
+    });
+  };
+
+  const initializedRef = useRef(false);
 
   // Initialize when opening / switching to edit
   useEffect(() => {
     if (!isOpen) return;
-    if (productToEdit) {
-      setName(productToEdit.name || '');
-      setPrice(productToEdit.price || '');
-      setCost(productToEdit.cost || '');
-      setMinQuantity(productToEdit.minQuantity || '');
-      setBrandId(productToEdit.brandId || '');
-      setInventoryQuantities(Array.isArray(productToEdit.inventories) ? productToEdit.inventories.map(i => ({ inventoryId: i.inventoryId, quantity: i.quantity })) : []);
-      setImagePreviews([]);
-      if (fileRef.current) fileRef.current.value = '';
-    } else {
-      setName(''); setPrice(''); setCost(''); setMinQuantity(''); setBrandId('');
+
+    if (productToEdit && !initializedRef.current) {
+    // Inicializa solo una vez para edición, con datos de productToEdit
+    setName(productToEdit.name || '');
+    setPrice(productToEdit.price || '');
+    setCost(productToEdit.cost || '');
+    setMinQuantity(productToEdit.minQuantity || '');
+    setBrandId(productToEdit.brandId || '');
+    setInventoryQuantities(
+      Array.isArray(productToEdit.inventories)
+        ? productToEdit.inventories.map(i => ({ inventoryId: i.inventoryId, quantity: i.quantity }))
+        : []
+    );
+    // Manejo de previews (igual que antes)
+    const previews = [];
+    try {
+      const fullImage = productToEdit.image || null;
+      if (productToEdit.thumbnails && Array.isArray(productToEdit.thumbnails) && productToEdit.thumbnails.length) {
+        for (const t of productToEdit.thumbnails) previews.push({ name: 'existing-thumb', url: t, viewerUrl: fullImage || t, size: 0, existing: true });
+      } else if (productToEdit.thumbnail) {
+        previews.push({ name: 'existing-thumb', url: productToEdit.thumbnail, viewerUrl: fullImage || productToEdit.thumbnail, size: 0, existing: true });
+      } else if (productToEdit.image) {
+        previews.push({ name: 'existing-image', url: productToEdit.image, viewerUrl: productToEdit.image, size: 0, existing: true });
+      }
+    } catch (e) { /* ignore */ }
+    setImagePreviews(previews);
+    if (fileRef.current) fileRef.current.value = '';
+      initializedRef.current = true; // Marca como inicializado
+    } else if (!productToEdit) {
+      setName('');
+      setPrice(''); 
+      setCost('');
+      setMinQuantity('');
+      setBrandId('');
       setInventoryQuantities([]);
       setImagePreviews([]);
       if (fileRef.current) fileRef.current.value = '';
@@ -61,7 +110,7 @@ function NewModalAddProductModal({
 
   const handleFiles = (e) => {
     const files = Array.from(e.target.files || []);
-    const previews = files.map(f => ({ name: f.name, url: URL.createObjectURL(f), size: f.size }));
+  const previews = files.map(f => ({ name: f.name, url: URL.createObjectURL(f), viewerUrl: URL.createObjectURL(f), size: f.size }));
     // revoke previous
     setImagePreviews(prev => {
       prev.forEach(p => p.url && URL.revokeObjectURL(p.url));
@@ -80,6 +129,11 @@ function NewModalAddProductModal({
     setInventoryQuantities(prev => prev.map(i => i.inventoryId === inventoryId ? { ...i, quantity: Number(value) } : i));
   };
 
+  const handleClose =() => {
+    initializedRef.current = false;
+    onClose && onClose();
+  };
+
   const removeInventory = (inventoryId) => setInventoryQuantities(prev => prev.filter(i => i.inventoryId !== inventoryId));
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -87,13 +141,47 @@ function NewModalAddProductModal({
   const [isNewInventoryOpen, setIsNewInventoryOpen] = useState(false);
   const [newInventoryName, setNewInventoryName] = useState('');
   const [isCreatingInventory, setIsCreatingInventory] = useState(false);
+  // Create-brand modal state (small overlay similar to inventory)
+  const [isNewBrandOpen, setIsNewBrandOpen] = useState(false);
+  const [newBrandName, setNewBrandName] = useState('');
+  const [isCreatingBrand, setIsCreatingBrand] = useState(false);
+
+  const createBrand = async (name) => {
+    const normalize = (s) => String(s || '').trim().replace(/\s+/g, ' ');
+    const wanted = normalize(name);
+  if (!wanted) { showNotification('El nombre no puede estar vacío', 'error'); return; }
+  if (!onCreateBrand) { showNotification('Función de creación no disponible', 'error'); return; }
+    try {
+      setIsCreatingBrand(true);
+      const created = await onCreateBrand(wanted);
+  if (!created) { showNotification('No se creó la marca.', 'error'); setIsCreatingBrand(false); return; }
+      let createdId = null;
+      if (typeof created === 'string') createdId = created;
+      else if (typeof created === 'object') createdId = created.id || null;
+      // fallback: match by name
+      if (!createdId) {
+        const found = brands.find(b => (String(b.name || '').trim()) === wanted);
+        if (found) createdId = found.id;
+      }
+  if (!createdId) { showNotification('Marca creada, pero no se pudo resolver su id. Revisa la consola.', 'error'); console.error('createBrand: no id', { created, brands }); setIsCreatingBrand(false); return; }
+  setBrandId(createdId);
+  setNewBrandName('');
+  clearFileInputAndPreviews();
+  setIsNewBrandOpen(false);
+    } catch (err) {
+  console.error('createBrand error', err);
+  showNotification('No se pudo crear la marca', 'error');
+    } finally {
+      setIsCreatingBrand(false);
+    }
+  };
 
   // Use an explicit handler to create inventory (avoids nested form submission issues)
   const createInventory = async (name) => {
     const normalize = (s) => String(s || '').trim().replace(/\s+/g, ' ');
     const wanted = normalize(name);
-    if (!wanted) return alert('El nombre no puede estar vacío');
-    if (!onCreateInventory) return alert('Función de creación no disponible');
+  if (!wanted) { showNotification('El nombre no puede estar vacío', 'error'); return; }
+  if (!onCreateInventory) { showNotification('Función de creación no disponible', 'error'); return; }
     try {
       setIsCreatingInventory(true);
       const created = await onCreateInventory(wanted);
@@ -101,10 +189,7 @@ function NewModalAddProductModal({
       // created expected shape: { id, name, ... }
       let createdId = null;
 
-      if (!created) {
-        alert('No se creó el inventario.');
-        return;
-      }
+      if (!created) { showNotification('No se creó el inventario.', 'error'); return; }
 
       if (typeof created === 'string') {
         // If the helper returned a string, try to resolve it as an id existing in inventories
@@ -135,7 +220,7 @@ function NewModalAddProductModal({
       if (!createdId) {
         // If still no id, show error and log returned value for debugging
         console.error('createInventory: could not resolve created id', { created, inventories });
-        alert('Inventario creado, pero no se pudo resolver su id. Revisa la consola.');
+        showNotification('Inventario creado, pero no se pudo resolver su id. Revisa la consola.', 'error');
         setIsCreatingInventory(false);
         return;
       }
@@ -145,10 +230,11 @@ function NewModalAddProductModal({
       }
       setSelectedInventory(createdId);
       setNewInventoryName('');
+      clearFileInputAndPreviews();
       setIsNewInventoryOpen(false);
     } catch (err) {
       console.error('createInventory error', err);
-      alert('No se pudo crear el inventario');
+      showNotification('No se pudo crear el inventario', 'error');
     } finally {
       setIsCreatingInventory(false);
     }
@@ -156,22 +242,63 @@ function NewModalAddProductModal({
 
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
-    await onAddProduct({
-      docId: productToEdit?.docId || null,
-      name, price, cost, minQuantity,
-      brandId,
-      inventories: inventoryQuantities.map(i => ({ inventoryId: i.inventoryId, quantity: Number(i.quantity) }))
-    });
+    // collect selected files (if any)
+    let files = [];
+    try { files = Array.from(fileRef.current?.files || []); } catch (e) { files = []; }
+
+    // progress callback to update local UI
+    const progressCb = (p) => {
+      // p: { fileIndex, variant, percent }
+      setUploadProgress(prev => {
+        const next = { ...prev };
+        const idx = p.fileIndex || 0;
+        next[idx] = { ...(next[idx] || {}), [p.variant]: Math.round(p.percent || 0) };
+        return next;
+      });
+    };
+
+    try {
+      setIsUploading(true);
+      await onAddProduct({
+        docId: productToEdit?.docId || null,
+        name, price, cost, minQuantity,
+        brandId,
+        inventories: inventoryQuantities.map(i => ({ inventoryId: i.inventoryId, quantity: Number(i.quantity) })),
+        imageFiles: files
+      }, progressCb);
+      // show success toast local to the modal (visible above modal)
+      try { showNotification('Producto guardado con éxito.', 'success', 5000); } catch (e) {}
+    } catch (err) {
+      console.error('onAddProduct failed in modal:', err);
+      try { showNotification(err?.message || 'No se pudo guardar el producto.', 'error', 6000); } catch (e) {}
+      // rethrow so parent (Inventory) can run its retry manager if applicable
+      throw err;
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   if (!isOpen) return null;
 
+  // render notification toast inside modal (keeps UI consistent with app toasts)
+  const notifEl = notification.message ? (
+    <div
+      className={`app-toast app-toast-fixed ${notification.type}`}
+      data-icon={notification.type === 'success' ? '✓' : notification.type === 'error' ? '✕' : 'ℹ'}
+      role="status"
+      aria-live="polite"
+    >
+      {notification.message}
+    </div>
+  ) : null;
+
   return (
-    <div className="nmapm-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose && onClose()}>
+    <div className="nmapm-backdrop" role="presentation" onClick={(e) => e.target === e.currentTarget &&  handleClose()}>
+      {notifEl}
       <div className="nmapm-modal" role="dialog" aria-modal="true" ref={modalRef} onMouseDown={(e) => e.stopPropagation()}>
         <header className="nmapm-header">
           <h3 className="nmapm-title">{productToEdit ? 'Editar Producto' : 'Añadir Producto'}</h3>
-          <button aria-label="Cerrar" className="nmapm-close" onClick={onClose}>×</button>
+          <button aria-label="Cerrar" className="nmapm-close" onClick={handleClose}>×</button>
         </header>
 
         <form className="nmapm-body" onSubmit={handleSubmit}>
@@ -188,25 +315,79 @@ function NewModalAddProductModal({
                   <option value="">Ninguna</option>
                   {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
-                <button type="button" className="nmapm-btn" onClick={() => onCreateBrand && onCreateBrand('')}>Crear</button>
+                <button type="button" className="nmapm-btn" onClick={() => setIsNewBrandOpen(true)}>Crear</button>
               </div>
             </label>
           </div>
 
           <div className="nmapm-row">
             <label className="nmapm-field">
-              <span className="nmapm-label">Imágenes</span>
+              <span className="nmapm-label">Imagen</span>
               <div className="nmapm-upload">
-                <input ref={fileRef} type="file" multiple accept="image/*" onChange={handleFiles} />
-                <button type="button" className="nmapm-upload-btn" onClick={() => fileRef.current?.click()}>Seleccionar</button>
+                <input ref={fileRef} type="file" multiple accept="image/*" capture="environment" onChange={handleFiles} />
+                <button type="button" className="nmapm-upload-btn" onClick={() => fileRef.current?.click()} aria-label={imagePreviews.length ? 'Editar imagen' : 'Subir imagen'}>{imagePreviews.length ? 'Editar' : 'Subir'}</button>
                 <div className="nmapm-upload-hint">PNG/JPG • Máx 5MB</div>
-                {imagePreviews.length > 0 && (
-                  <div className="nmapm-previews">
+                {/* {imagePreviews.length > 0 && (
+                  <div className={`nmapm-previews ${imagePreviews.length === 1 ? 'center' : ''}`}>
                     {imagePreviews.map((p, i) => (
-                      <div key={i} className="nmapm-thumb"><img src={p.url} alt={p.name} /></div>
+                      <div key={i} className="nmapm-thumb">
+                        <img
+                          src={p.url}
+                          alt={p.name}
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setViewerSrc(p.viewerUrl || p.url); setViewerOpen(true); }}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); setViewerSrc(p.viewerUrl || p.url); setViewerOpen(true); } }}
+                          style={{ cursor: 'zoom-in' }}
+                        />
+                        <div className="nmapm-progress">
+                          {isUploading ? (
+                            <div>
+                              <div style={{ fontSize: '0.75rem' }}>{p.name}</div>
+                              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                <div style={{ width: 140, height: 8, background: '#eee', borderRadius: 6 }}>
+                                  <div style={{ width: `${uploadProgress[i]?.full || 0}%`, height: '100%', background: '#2b8aef', borderRadius: 6 }} />
+                                </div>
+                                <div style={{ fontSize: '0.75rem', minWidth: 36 }}>{uploadProgress[i]?.full ?? 0}%</div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: '0.75rem', textAlign: 'center' }}>{p.name}</div>
+                          )}
+                        </div>
+                      </div>
                     ))}
                   </div>
-                )}
+                )} */}
+                {/* Image viewer for previews */}
+                <ImageViewerModal isOpen={viewerOpen} onClose={() => setViewerOpen(false)} src={viewerSrc} alt={name || 'Imagen'} />
+            {/* Create Brand Modal (small overlay) */}
+            {isNewBrandOpen && (
+              <div className="nmapm-create-modal" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && setIsNewBrandOpen(false)}>
+                <div className="nmapm-create-card" onMouseDown={(e) => e.stopPropagation()}>
+                    <header style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+                    <h4 style={{ margin:0 }}>Crear Nueva Marca</h4>
+                    <button type="button" className="nmapm-close" aria-label="Cerrar" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setIsNewBrandOpen(false); }}>×</button>
+                  </header>
+                  <div>
+                    <label style={{ display:'block', marginBottom:8 }}>
+                      Nombre de la Marca
+                      <input
+                        value={newBrandName}
+                        onChange={e => setNewBrandName(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); createBrand(newBrandName); } }}
+                        placeholder="Ej: Marca Nueva"
+                        style={{ display:'block', width:'100%', marginTop:6, padding:'8px 10px', borderRadius:8, border:'1px solid var(--nmapm-input-border)', background:'var(--nmapm-input-bg)', color:'var(--nmapm-text)' }}
+                      />
+                    </label>
+                    <div className="nmapm-create-actions" style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:12 }}>
+                      <button type="button" className="nmapm-btn" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setIsNewBrandOpen(false); }} disabled={isCreatingBrand}>Cancelar</button>
+                      <button type="button" className="nmapm-btn primary" onClick={(e) => { e.stopPropagation(); e.preventDefault(); createBrand(newBrandName); }} disabled={isCreatingBrand}>{isCreatingBrand ? 'Creando...' : 'Crear'}</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
               </div>
             </label>
 
@@ -259,11 +440,11 @@ function NewModalAddProductModal({
 
           <footer className="nmapm-footer">
             <div className="nmapm-actions">
-              <button type="button" className="nmapm-btn" onClick={onClose} disabled={loading}>Cancelar</button>
+              <button type="button" className="nmapm-btn" onClick={handleClose} disabled={loading}>Cancelar</button>
               {productToEdit && (
                 <button type="button" className="nmapm-btn danger small" onClick={() => setShowDeleteConfirm(true)} disabled={loading}>Eliminar</button>
               )}
-              <button type="submit" className="nmapm-btn primary big" disabled={loading}>{loading ? 'Guardando...' : (productToEdit ? 'Guardar' : 'Crear')}</button>
+              <button type="submit" className="nmapm-btn primary big" disabled={loading || isUploading}>{loading || isUploading ? 'Guardando...' : (productToEdit ? 'Guardar' : 'Crear')}</button>
             </div>
           </footer>
 
@@ -288,11 +469,11 @@ function NewModalAddProductModal({
 
             {/* Create Inventory Modal (small overlay) */}
             {isNewInventoryOpen && (
-              <div className="nmapm-create-modal" role="dialog" aria-modal="true" onMouseDown={(e) => e.target === e.currentTarget && setIsNewInventoryOpen(false)}>
+              <div className="nmapm-create-modal" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && setIsNewInventoryOpen(false)}>
                 <div className="nmapm-create-card" onMouseDown={(e) => e.stopPropagation()}>
                   <header style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
                     <h4 style={{ margin:0 }}>Crear Nuevo Inventario</h4>
-                    <button type="button" className="nmapm-close" aria-label="Cerrar" onClick={() => setIsNewInventoryOpen(false)}>×</button>
+                    <button type="button" className="nmapm-close" aria-label="Cerrar" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setIsNewInventoryOpen(false); }}>×</button>
                   </header>
                   <div>
                     <label style={{ display:'block', marginBottom:8 }}>
@@ -306,8 +487,8 @@ function NewModalAddProductModal({
                       />
                     </label>
                     <div className="nmapm-create-actions" style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:12 }}>
-                      <button type="button" className="nmapm-btn" onClick={() => setIsNewInventoryOpen(false)} disabled={isCreatingInventory}>Cancelar</button>
-                      <button type="button" className="nmapm-btn primary" onClick={() => createInventory(newInventoryName)} disabled={isCreatingInventory}>{isCreatingInventory ? 'Creando...' : 'Crear'}</button>
+                      <button type="button" className="nmapm-btn" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setIsNewInventoryOpen(false); }} disabled={isCreatingInventory}>Cancelar</button>
+                      <button type="button" className="nmapm-btn primary" onClick={(e) => { e.stopPropagation(); e.preventDefault(); createInventory(newInventoryName); }} disabled={isCreatingInventory}>{isCreatingInventory ? 'Creando...' : 'Crear'}</button>
                     </div>
                   </div>
                 </div>

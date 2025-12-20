@@ -66,7 +66,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.6rem 0.75rem;
+  padding: 0.45rem 0.65rem;
   background: var(--inv-header-bg);
   color: var(--inv-header-text);
   border-bottom: 1px solid var(--inv-row-divider);
@@ -79,9 +79,9 @@
 .virtual-table .table-row {
   display: flex;
   align-items: center;
-  padding: 0 0.75rem;
+  padding: 0 0.6rem;
   box-sizing: border-box;
-  min-height: 45px;
+  min-height: 40px;
   height: auto;
   border-bottom: 1px solid var(--inv-row-divider);
   background: var(--inv-row-bg);
@@ -170,17 +170,17 @@
   width: 100%;
   height: 100%;
   box-sizing: border-box;
-  padding: 0 0.75rem;
-  gap: 0.25rem;
+  padding: 0 0.6rem;
+  gap: 0.2rem;
   overflow: hidden;
 }
 
 
 /* --- Inventory selector (tabs) and view switcher UI improvements --- */
 .inventory-nav-wrap {
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.5rem;
   border-bottom: 1px solid var(--inv-row-divider);
-  padding-bottom: 0.8rem;
+  padding-bottom: 0.35rem;
 }
 .inventory-nav {
   padding: 0;
@@ -256,10 +256,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.6rem 0.9rem;
+  padding: 0.45rem 0.7rem;
   border-bottom: 1px solid var(--inv-row-divider);
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: 0.92rem;
 }
 .compact-list-body { max-height: 64vh; overflow: auto; }
 .compact-list-body { max-height: 64vh; overflow: auto; }
@@ -338,7 +338,7 @@
   top: 0;
   background: var(--inv-header-bg);
   color: var(--inv-header-text);
-  padding: 0.75rem;
+  padding: 0.45rem 0.6rem;
   text-align: left;
   font-weight: 700;
   border-bottom: 1px solid var(--inv-row-divider);
@@ -348,7 +348,7 @@
 }
 
 .simple-list tbody td {
-  padding: 0.75rem;
+  padding: 0.45rem 0.6rem;
   border-bottom: 1px solid var(--inv-row-divider);
   vertical-align: middle;
   overflow: hidden;
@@ -381,5 +381,13 @@ html.inventory-bg, body.inventory-bg {
 /* Theme-sensitive tweaks (dark or light tokens already defined above) */
 @media (prefers-color-scheme: dark) {
   .inventory-tab { color: var(--inv-header-text); }
+}
+
+/* Reduce vertical spacing specifically for inventory page titles (e.g., 'Total') */
+.inventory-page h2 {
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
+  font-size: 1.5rem;
+  line-height: 1.12;
 }
 /* EOF */

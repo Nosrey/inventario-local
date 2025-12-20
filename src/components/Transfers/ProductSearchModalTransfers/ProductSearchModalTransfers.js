@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from 'react';
 import '../../Cashier/ProductSearchModal/ProductSearchModal.css';
-import QtyButton from '../../UI/QtyButton';
 import { createSearcher } from '../../../utils/smartSearch';
+import QtyButton from '../../UI/QtyButton';
 
-function ProductSearchModalBuys({
+function ProductSearchModalTransfers({
   isOpen,
   onClose,
   onAddProduct,
   allProducts,
   inventories,
   activeInventoryId,
+  destInventoryId,
   onInventoryChange,
   appSettings,
   cart = []
@@ -38,6 +39,8 @@ function ProductSearchModalBuys({
 
   const activeInventory = useMemo(() => inventories.find(i => i.id === activeInventoryId), [inventories, activeInventoryId]);
   const inventoryProductMap = activeInventory?.products || null;
+  const destInventory = useMemo(() => inventories.find(i => i.id === destInventoryId), [inventories, destInventoryId]);
+  const destInventoryProductMap = destInventory?.products || null;
 
   const cartQtyMap = useMemo(() => {
     const m = Object.create(null);
@@ -45,7 +48,7 @@ function ProductSearchModalBuys({
     return m;
   }, [cart]);
 
-  // For purchases we show the actual stock as informational only (don't subtract cart or block adds)
+  // For transfers we also show stock info but behavior is identical for selecting quantity
   const productsWithStock = useMemo(() => {
     if (!allProducts?.length) return [];
     return allProducts.map(p => {
@@ -68,6 +71,7 @@ function ProductSearchModalBuys({
   const searcher = useMemo(() => createSearcher(productsWithStock || [], { keys: ['name', 'id', 'docId'], nameKey: 'name', maxResults: 800, minScore: 8 }), [productsWithStock]);
 
   const filtered = useMemo(() => {
+    if (!activeInventoryId) return [];
     if (!search.trim()) return productsWithStock;
     try {
       const results = searcher.search(search, { maxResults: 800, minScore: 6 });
@@ -76,7 +80,7 @@ function ProductSearchModalBuys({
       const q = search.toLowerCase();
       return productsWithStock.filter(p => p.name?.toLowerCase().includes(q) || String(p.id).includes(q));
     }
-  }, [search, productsWithStock, searcher]);
+  }, [search, productsWithStock, activeInventoryId, searcher]);
 
   useEffect(() => { if (focusIndex >= filtered.length) setFocusIndex(filtered.length - 1); }, [filtered, focusIndex]);
 
@@ -102,33 +106,41 @@ function ProductSearchModalBuys({
 
   const confirmAddQuantity = useCallback(() => {
     if (confirmingRef.current) return; if (!qtyDialog) return; confirmingRef.current = true;
-    const { product, quantity } = qtyDialog; const chosen = quantity; if (chosen <= 0) { showModalNotice('Cantidad inválida.', 'error', 1800); confirmingRef.current = false; return; }
-    // For purchases we don't enforce stock limits here — the chosen amount is accepted
+    const { product, quantity, max } = qtyDialog; const chosen = quantity; if (chosen <= 0) { showModalNotice('Cantidad inválida.', 'error', 1800); confirmingRef.current = false; return; }
+    if (Number.isFinite(max) && chosen > max) { showModalNotice('La cantidad excede el stock disponible en el inventario de origen.', 'error', 2000); confirmingRef.current = false; return; }
+    // For transfers we will accept the chosen amount but remote validation happens at confirm time
     const key = product.docId || product.id;
     onAddProduct({ ...product, docId: key, totalStock: product.originalStock }, chosen);
     if (chosen === 1) {
-      showModalNotice(`Se añadió 1 unidad de "${product.name}" al carrito de compras.`, 'success', 2200);
+      showModalNotice(`Se añadió 1 unidad de "${product.name}".`, 'success', 2200);
     } else {
-      showModalNotice(`Se añadieron ${chosen} unidades de "${product.name}" al carrito de compras.`, 'success', 2200);
+      showModalNotice(`Se añadieron ${chosen} unidades de "${product.name}".`, 'success', 2200);
     }
     setQtyDialog(null); setQtyInputValue(''); setRawSearch(''); setSearch(''); setFocusIndex(-1);
     requestAnimationFrame(() => { inputRef.current?.focus(); confirmingRef.current = false; });
   }, [qtyDialog, onAddProduct, showModalNotice]);
 
-  const openQtyDialog = useCallback((p) => { setQtyDialog({ product: p, quantity: 1, max: Number.isFinite(p.stock) ? p.stock : undefined }); setQtyInputValue(''); }, [showModalNotice]);
+  const openQtyDialog = useCallback((p, destStock = 0) => { setQtyDialog({ product: p, quantity: 1, max: Number.isFinite(p.stock) ? p.stock : undefined, destStock: Number(destStock || 0) }); setQtyInputValue(''); }, [showModalNotice]);
   const closeQtyDialog = useCallback(() => { setQtyDialog(null); setQtyInputValue(''); requestAnimationFrame(() => inputRef.current?.focus()); }, []);
-  const changeQuantity = useCallback((delta) => { setQtyDialog(d => { if (!d) return d; let base = d.quantity; let q = base + delta; if (q < 1) q = 1; // don't clamp to max for purchases
-    setQtyInputValue(String(q)); return { ...d, quantity: q }; }); }, []);
-  const setQuantityFromInput = useCallback((raw) => { const cleaned = raw.replace(/[^\d]/g, ''); setQtyInputValue(cleaned); setQtyDialog(d => { if (!d) return d; if (cleaned === '') return { ...d, quantity: 1 }; let q = parseInt(cleaned, 10); if (isNaN(q)) q = 1; if (q < 0) q = 0; return { ...d, quantity: q }; }); }, []);
+  const changeQuantity = useCallback((delta) => { setQtyDialog(d => { if (!d) return d; let base = Number(d.quantity || 0); let q = base + delta; if (q < 1) q = 1; // enforce max when provided
+    if (Number.isFinite(d.max) && q > d.max) q = d.max; setQtyInputValue(String(q)); return { ...d, quantity: q }; }); }, []);
+  const setQuantityFromInput = useCallback((raw) => { const cleaned = raw.replace(/[^\d]/g, ''); setQtyInputValue(cleaned); setQtyDialog(d => { if (!d) return d; if (cleaned === '') return { ...d, quantity: 1 }; let q = parseInt(cleaned, 10); if (isNaN(q)) q = 1; if (q < 1) q = 1; if (Number.isFinite(d.max) && q > d.max) q = d.max; return { ...d, quantity: q }; }); }, []);
   useEffect(() => { if (qtyDialog) { const t = setTimeout(() => { qtyInputRef.current?.focus(); }, 40); return () => clearTimeout(t); } }, [qtyDialog]);
 
-  const attemptSelect = useCallback((p) => { openQtyDialog(p); }, [openQtyDialog]);
+  const attemptSelect = useCallback((p, destStock) => {
+    const originStock = Number(p?.stock || 0);
+    if (!p || originStock <= 0) {
+      showModalNotice('No hay stock disponible en el inventario de origen.', 'error', 1800);
+      return;
+    }
+    openQtyDialog(p, destStock);
+  }, [openQtyDialog, showModalNotice]);
   const handleBackdrop = (e) => { if (e.target === backdropRef.current) onClose(); };
 
   if (!isOpen) return null;
 
   return (
-    <div ref={backdropRef} className="lps-backdrop" role="dialog" aria-modal="true" aria-label="Buscar y añadir producto (Compras)" onMouseDown={handleBackdrop}>
+    <div ref={backdropRef} className="lps-backdrop" role="dialog" aria-modal="true" aria-label="Buscar y añadir producto (Transferencias)" onMouseDown={handleBackdrop}>
   <div className="lps-modal lps-modal-buys">
         {modalNotice && (
           <div
@@ -146,27 +158,24 @@ function ProductSearchModalBuys({
               <div className="lps-qty-control">
                 <QtyButton variant="minus" onClick={() => changeQuantity(-1)} ariaLabel="Restar" disabled={qtyDialog.quantity <= 1} />
                 <input ref={qtyInputRef} className="lps-qty-input" type="text" inputMode="numeric" placeholder="1" min="1" value={qtyInputValue} onChange={(e) => setQuantityFromInput(e.target.value)} />
-                <QtyButton variant="plus" onClick={() => changeQuantity(1)} ariaLabel="Sumar" />
+                <QtyButton variant="plus" onClick={() => changeQuantity(1)} ariaLabel="Sumar" disabled={Number.isFinite(qtyDialog?.max) ? qtyDialog.quantity >= qtyDialog.max : false} />
               </div>
 
-              {/* Estimated totals for purchases: cuánto sumas y cuánto costará */}
+              {/* Estimated totals for transfers: cuánto sumas y cuánto costará */}
               <div className="lps-qty-estimate" style={{ marginTop: '0.6rem', color: 'var(--c-text-dim)', fontSize: '0.95rem' }}>
                 {(() => {
                   const qty = Number(qtyDialog.quantity || 0);
-                  const baseVal = Number(qtyDialog.product.cost ?? qtyDialog.product.price ?? 0);
-                  const paralelo = Number(appSettings?.dolarParalelo) || 1;
-                  const bcv = Number(appSettings?.dolarBCV) || 1;
-                  const subtotalUSD = Math.round((baseVal * qty) * 100) / 100;
-                  const subtotalBsExact = subtotalUSD * paralelo;
-                  const subtotalBsRaw = Math.ceil(subtotalBsExact || 0);
-                  const subtotalBsRounded10 = Math.ceil(subtotalBsRaw / 10) * 10;
-                  const subtotalUsdAdjusted = subtotalBsExact / (bcv || 1);
-                  const usdLabel = subtotalUsdAdjusted.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                  const bsLabel = `${Math.max(0, Math.round(subtotalBsRounded10)).toLocaleString('es-VE')} Bs.`;
+                  const destBefore = Number(qtyDialog.destStock || 0);
+                  const destAfter = destBefore + qty;
                   return (
                     <div>
                       <div>Se añadirán: <strong>{qty}</strong> unidad{qty === 1 ? '' : 'es'}</div>
-                      <div>Costo total estimado: <strong style={{ marginLeft: '0.4rem' }}>{bsLabel}</strong> (≈ {usdLabel})</div>
+                      <div>
+                        Total en destino tras la transferencia: <strong style={{ marginLeft: '0.4rem' }}>{destAfter}</strong> unidad{destAfter === 1 ? '' : 'es'}
+                      </div>
+                      <div style={{ color: 'var(--c-text-dim)', fontSize: '0.9rem', marginTop: '0.25rem' }}>
+                        ({destBefore} actuales + {qty} por transferir)
+                      </div>
                     </div>
                   );
                 })()}
@@ -181,7 +190,7 @@ function ProductSearchModalBuys({
         )}
 
         <header className="lps-header">
-          <h2 className="lps-title">Añadir Producto (Compras)</h2>
+          <h2 className="lps-title">Añadir Producto (Transferencias)</h2>
           <button type="button" className="lps-close" aria-label="Cerrar" onClick={onClose}>×</button>
         </header>
 
@@ -204,8 +213,8 @@ function ProductSearchModalBuys({
 
           <div ref={listRef} className="lps-list lps-virt-scroll" role="listbox" aria-label="Resultados de productos">
             {startOffset > 0 && (<div style={{ height: startOffset }} aria-hidden="true" />)}
-            {visibleSlice.map(({ product, index }) => {
-              // for purchases show cost if present else price
+              {visibleSlice.map(({ product, index }) => {
+              // for transfers show cost if present else price
               const baseVal = Number(product.cost ?? product.price ?? 0);
               const adjusted = adjustUSD(baseVal);
               const bcvRate = Number(appSettings?.dolarBCV) || 1;
@@ -214,8 +223,9 @@ function ProductSearchModalBuys({
               const adjustedBsRounded10 = Math.ceil(adjustedBsRaw / 10) * 10;
               const adjustedBsLabel = `${adjustedBsRounded10.toLocaleString('es-VE')} Bs.`;
               const focused = index === focusIndex;
+              const destStock = Number(destInventoryProductMap?.[product.docId || product.id]?.quantity) || 0;
               return (
-                <ProductRow key={product.id} index={index} focused={focused} product={product} adjusted={adjusted} adjustedBsLabel={adjustedBsLabel} onSelect={() => attemptSelect(product)} />
+                <ProductRow key={product.id} index={index} focused={focused} product={product} adjusted={adjusted} adjustedBsLabel={adjustedBsLabel} destStock={destStock} onSelect={() => attemptSelect(product, destStock)} />
               );
             })}
             {endOffset > 0 && (<div style={{ height: endOffset }} aria-hidden="true" />)}
@@ -228,36 +238,40 @@ function ProductSearchModalBuys({
   );
 }
 
-  const ProductRow = React.memo(function ProductRow({ product, adjusted, focused, adjustedBsLabel, onSelect, index }) {
+const ProductRow = React.memo(function ProductRow({ product, adjusted, focused, adjustedBsLabel, onSelect, index, destStock }) {
   const handleKey = (e) => { if ((e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSelect(); } };
   const origPrice = product.price !== undefined ? Number(product.price) : null;
   const baseVal = product.cost !== undefined ? Number(product.cost) : origPrice;
+  const hasStock = Number(product.stock || 0) > 0;
   return (
-    <div data-row-index={index} className={'lps-row' + (focused ? ' focused' : '')} role="option" aria-selected={focused} tabIndex={focused ? 0 : -1} onClick={onSelect} onKeyDown={handleKey}>
-      <div className="lps-thumb">{
-        (product.thumbnailWebp || product.thumbnail || product.image) ? (
-          <img src={product.thumbnailWebp || product.thumbnail || product.image} alt={product.name} loading="lazy" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />
+    <div data-row-index={index} className={'lps-row' + (focused ? ' focused' : '') + (hasStock ? '' : ' no-stock')} role="option" aria-selected={focused} tabIndex={hasStock && focused ? 0 : -1} onClick={hasStock ? onSelect : undefined} onKeyDown={hasStock ? handleKey : undefined}>
+      <div className="lps-thumb" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {(product.thumbnailWebp || product.thumbnail || product.image) ? (
+          <img
+            src={product.thumbnailWebp || product.thumbnail || product.image}
+            alt={product.name}
+            loading="lazy"
+            style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6 }}
+            onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+          />
         ) : (
-          <span className="lps-thumb-ph" aria-hidden="true">?</span>
-        )
-      }</div>
+          <span className="lps-thumb-ph" aria-hidden="true" style={{ width: 56, height: 56, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6 }}>?</span>
+        )}
+      </div>
       <div className="lps-main">
-          <div className="lps-line1">
+        <div className="lps-line1">
           <span className="lps-name">{product.name}</span>
-          {/* Show raw stored cost/price for Buys (do not display adjusted USD here) */}
-          <span className="lps-price">${(baseVal || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <div style={{ textAlign: 'right' }}>
+            <span className="lps-id" style={{ fontSize: '0.85rem', color: 'var(--c-text-dim)' }}>ID: {product.id}</span>
+          </div>
         </div>
         <div className="lps-line2">
-          <span className="lps-id">ID: {product.id}</span>
-          <span className="lps-stock">Stock: {product.stock}</span>
-          <span className="lps-price-bs" aria-hidden="true" style={{ marginLeft: '0.6rem', color: 'var(--c-text-dim)', fontSize: '0.86rem' }}>{adjustedBsLabel}</span>
-          {origPrice !== null && Math.abs(origPrice - (product.cost ?? origPrice)) > 0.001 && (
-            <span style={{ marginLeft: '0.6rem', color: 'var(--c-text-dim)', fontSize: '0.82rem' }}>Precio de venta: ${origPrice.toFixed(2)}</span>
-          )}
+          <span style={{ color: hasStock ? 'var(--c-text-dim)' : 'var(--c-danger)', fontSize: '0.9rem' }}>Stock (origen): <strong style={{ color: 'var(--c-text)' }}>{product.stock}</strong></span>
+          <span style={{ color: 'var(--c-text-dim)', fontSize: '0.9rem' }}>Stock (destino): <strong style={{ color: 'var(--c-text)' }}>{Number(destStock || 0)}</strong></span>
         </div>
       </div>
     </div>
   );
 });
 
-export default ProductSearchModalBuys;
+export default ProductSearchModalTransfers;

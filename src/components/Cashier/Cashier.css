@@ -48,6 +48,12 @@
   flex-wrap:wrap;
   margin-bottom:1.25rem;
 }
+/* layout helpers for header */
+.cashier-header .header-left{display:flex;align-items:center;gap:0.6rem}
+.cashier-header .right-controls{display:flex;align-items:center;gap:0.8rem}
+.settings-btn{display:inline-flex;align-items:center;justify-content:center;width:2.4rem;height:2.4rem;border-radius:8px;background:var(--c-surface);border:1px solid var(--c-border-soft);color:var(--c-text);cursor:pointer}
+.settings-btn:hover{background:var(--c-accent);color:#fff;border-color:var(--c-accent);box-shadow:0 6px 18px rgba(37,99,235,0.12)}
+.settings-btn:focus-visible{outline:none;box-shadow:var(--c-focus)}
 .cashier-header h2{margin:0;font-size:1.85rem;font-weight:600;letter-spacing:.02em;}
 .inventory-selector-wrapper{
   display:flex;
@@ -136,25 +142,27 @@
 /* ============ CONTROL DE CANTIDAD ============ */
 .cart-cell.quantity{align-items:center;justify-content:center;text-align:center;}
 .qty-control{
-  display:inline-flex;align-items:center;justify-content:center;gap:.55rem;padding:.32rem .7rem;
-  background:var(--c-surface-alt);border:1px solid var(--c-border-soft);border-radius:2rem;height:2.2rem;
-  transition:background var(--c-transition),border-color var(--c-transition);position:relative;
+  --qty-btn-size: 36px; /* match QtyButton default */
+  display:inline-flex;align-items:center;justify-content:center;gap:.45rem;padding:.18rem .4rem;
+  background:var(--c-surface-alt);border:1px solid var(--c-border-soft);border-radius:2rem;min-height:var(--qty-btn-size);
+  transition:background var(--c-transition),border-color var(--c-transition);position:relative;box-sizing:border-box;
 }
 .qty-control:hover{background:var(--c-surface);border-color:var(--c-border);}
 .qty-control:focus-within{border-color:var(--c-accent);box-shadow:0 0 0 2px rgba(var(--c-accent-rgb)/.35);}
 
 .qty-icon{
-  width:1.9rem;height:1.9rem;display:flex;align-items:center;justify-content:center;font-size:.95rem;font-weight:600;
-  border-radius:50%;background:var(--c-bg);border:1px solid var(--c-border);color:var(--c-text);cursor:pointer;
-  transition:background var(--c-transition),border-color var(--c-transition),color var(--c-transition),transform .12s;
+  /* keep compatibility for legacy .qty-icon usage but prefer fixed sizing from QtyButton */
+  width:var(--qty-btn-size);height:var(--qty-btn-size);display:flex;align-items:center;justify-content:center;font-size:.95rem;font-weight:600;
+  border-radius:8px;background:var(--c-bg);border:1px solid var(--c-border);color:var(--c-text);cursor:pointer;
+  transition:background var(--c-transition),border-color var(--c-transition),color var(--c-transition),transform .12s;box-sizing:border-box;
 }
 .qty-icon:hover:not(:disabled),.qty-icon:focus-visible:not(:disabled){background:var(--c-accent);border-color:var(--c-accent);color:#fff;outline:none;}
 .qty-icon:active:not(:disabled){transform:translateY(1px);}
 .qty-icon:disabled{opacity:.45;cursor:not-allowed;}
 
 .qty-number{
-  min-width:1.6rem;text-align:center;font-weight:600;font-size:.95rem;color:var(--c-text);
-  display:flex;align-items:center;justify-content:center;pointer-events:none;height:1.9rem;
+  min-width:1.2rem;max-width:3.4rem;text-align:center;font-weight:600;font-size:.95rem;color:var(--c-text);
+  display:flex;align-items:center;justify-content:center;pointer-events:none;padding:.08rem .28rem;height:var(--qty-btn-size);box-sizing:border-box;border-radius:6px;
 }
 
 /* stock hint */
@@ -166,7 +174,8 @@
 .unit-price-row{display:flex;align-items:center;gap:.38rem;width:100%;box-sizing:border-box;}
 .unit-price-editor{display:inline-flex;align-items:center;gap:.36rem;background:var(--c-surface-alt);border:1px solid var(--c-border-soft);border-radius:8px;padding:0 .44rem;height:2.05rem;flex:0 0 auto;box-sizing:border-box;overflow:hidden;}
 .unit-price-editor input[type="text"],.unit-price-editor input[type="number"]{
-  width:4.2rem;max-width:100%;min-width:3.2rem;background:transparent;border:0;padding:0;margin:0;font-size:.95rem;font-weight:700;color:var(--c-text);text-align:right;line-height:1;box-sizing:border-box;outline:none;-webkit-appearance:none;
+  width:4.2rem;max-width:100%;min-width:3.2rem;background:transparent;border:0;padding:0;margin:0;font-size:.95rem;font-weight:700;color:var(--c-text);text-align:right;line-height:1;box-sizing:border-box;outline:none;
+  -webkit-appearance: none; -moz-appearance: none; appearance: none;
 }
 .unit-price-editor input:focus{box-shadow:none;background:transparent;}
 .unit-price-editor .suffix{font-size:.72rem;color:var(--c-text-dim);user-select:none;flex:0 0 auto;}
@@ -184,11 +193,46 @@
 /* ============ FORMULARIO CLIENTE / PAGO ============ */
 .customer-form.grid-form{display:grid;grid-template-columns:1.3fr .7fr;gap:1.25rem;background:var(--c-surface);border:1px solid var(--c-border);padding:1.25rem 1.35rem 1.4rem;border-radius:var(--c-radius);box-shadow:0 4px 24px -10px rgba(0,0,0,.45);}
 .customer-form .group h3{margin:0 0 .75rem;font-size:.9rem;letter-spacing:.04em;text-transform:uppercase;color:var(--c-text-dim);font-weight:600;}
-.customer-form .fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.85rem .9rem;}
+.customer-form .fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.85rem .9rem;position:relative;}
 .customer-form label{display:flex;flex-direction:column;gap:.35rem;font-size:.68rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--c-text-dim);}
 .customer-form input,.customer-form select,.customer-form textarea{background:var(--c-surface-alt);border:1px solid var(--c-border);border-radius:var(--c-radius-sm);padding:.6rem .75rem;color:var(--c-text);font-size:.8rem;transition:border-color var(--c-transition),background var(--c-transition);min-height:2.55rem;}
 .customer-form textarea{min-height:90px;}
 .customer-form input:focus,.customer-form select:focus,.customer-form textarea:focus{outline:none;border-color:var(--c-accent);box-shadow:var(--c-focus);}
+
+/* Sugerencias de cliente */
+.customer-suggestions{display:flex;flex-direction:column;gap:0.35rem;margin-top:0.35rem}
+.customer-suggestion{background:var(--c-surface-alt);border:1px solid var(--c-border);padding:0.5rem;border-radius:6px;text-align:left;cursor:pointer}
+.customer-suggestion .cs-top{display:flex;justify-content:space-between;gap:0.5rem}
+.customer-suggestion .cs-cedula{color:var(--c-text-dim);font-size:0.85rem}
+.customer-suggestion:hover{box-shadow:var(--c-focus);border-color:var(--c-accent)}
+
+/* Inline dropdown removed - panel-based customers used instead */
+
+/* === Customers panel below form === */
+.customers-panel{margin-top:1rem;background:var(--c-surface);border:1px solid var(--c-border);border-radius:10px;padding:0.8rem;box-shadow:0 4px 24px -10px rgba(0,0,0,.45)}
+.customers-panel-inner{display:flex;flex-direction:column;gap:0.6rem}
+.customers-panel-header{display:flex;gap:0.8rem;align-items:center}
+.customers-panel-header h4{margin:0;font-size:0.92rem;color:var(--c-text-dim);text-transform:uppercase}
+.customers-panel-header input{flex:1;background:var(--c-surface-alt);border:1px solid var(--c-border);padding:0.45rem .6rem;border-radius:8px;color:var(--c-text)}
+.customers-list{display:flex;flex-direction:column;gap:6px;max-height:240px;overflow:auto;padding-right:4px}
+.customers-list-item{background:transparent;border:1px solid transparent;padding:0.6rem;border-radius:8px;text-align:left;color:var(--c-text);cursor:pointer}
+.customers-list-item .cli-top{display:flex;justify-content:space-between;align-items:center}
+.customers-list-item .cli-ced{color:var(--c-text-dim);font-size:0.86rem}
+.customers-list-item .cli-bottom{font-size:0.85rem;color:var(--c-text-dim);margin-top:6px}
+.customers-list-item:hover{background:rgba(255,255,255,0.02);border-color:var(--c-border-soft)}
+.customers-list-item.selected{box-shadow:0 6px 18px rgba(37,99,235,0.12);border:1px solid rgba(37,99,235,0.18);background:linear-gradient(180deg, rgba(37,99,235,0.03), transparent)}
+/* keyboard focus visible for accessibility */
+.customers-list-item:focus{outline:none;box-shadow:0 6px 18px rgba(37,99,235,0.14);border:1px solid rgba(37,99,235,0.2);background:linear-gradient(180deg, rgba(37,99,235,0.04), transparent)}
+.customers-list-item:focus:not(.selected){background:rgba(37,99,235,0.02)}
+
+/* Modal backdrop and card for cedula confirmation */
+.modal-backdrop{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);z-index:3000}
+.modal-card{background:var(--c-surface);border:1px solid var(--c-border);border-radius:12px;padding:1.05rem 1.2rem;max-width:560px;width:92%;box-shadow:0 8px 40px rgba(0,0,0,0.6)}
+.modal-card h3{margin:0 0 .5rem;font-size:1.05rem;color:var(--c-text)}
+.modal-card p{margin:0 0 .85rem;color:var(--c-text-dim);line-height:1.3}
+.modal-actions{display:flex;gap:.6rem;justify-content:flex-end}
+.modal-actions .outline.secondary{background:transparent;border:1px solid var(--c-border);color:var(--c-text);padding:.5rem .8rem;border-radius:8px}
+.modal-actions .confirm-btn{padding:.5rem .9rem}
 
 /* payment */
 .method-select{display:flex;flex-direction:column;gap:.35rem;width:100%;max-width:340px;}
@@ -200,7 +244,7 @@
 .payment-fields .confirm-btn{align-self:flex-end;height:2.55rem;padding:0 1.2rem;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;flex:0 0 auto;}
 .confirm-btn{margin-top:0;background:var(--c-accent);border:1px solid var(--c-accent);color:#fff;padding:.75rem 1.1rem;font-weight:600;border-radius:var(--c-radius-sm);cursor:pointer;transition:background var(--c-transition),box-shadow var(--c-transition);font-size:.85rem;}
 .confirm-btn:hover,.confirm-btn:focus-visible{background:#1d4fbf;outline:none;}
-.confirm-btn:disabled{opacity:.55;cursor:progress;}
+.confirm-btn:disabled{opacity:.55;cursor:not-allowed;}
 
 /* ============ RESPONSIVE ============ */
 @media (max-width:900px){
@@ -317,3 +361,7 @@
 @media (max-width:760px){
   .remove-btn { width:1.9rem; height:1.9rem; min-width:1.9rem; border-radius:6px; }
 }
+
+/* Small styles for cart thumbnail added by viewer wiring */
+.cart-thumb-btn{border:0;background:transparent;padding:0;margin-right:10px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;overflow:hidden}
+.cart-thumb{width:48px;height:48px;object-fit:cover;border-radius:6px;display:block}

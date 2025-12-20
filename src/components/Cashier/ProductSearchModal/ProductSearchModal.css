@@ -158,7 +158,6 @@
   color: var(--lps-text-dim);
 }
 
-.lps-select,
 .lps-input {
   border: 1px solid var(--lps-border);
   background: var(--lps-surface);
@@ -302,6 +301,29 @@
   box-shadow: 0 1px 3px -1px rgba(220,38,38,.4);
   transform: none;
 }
+
+/* Support class used by Transfers modal for no-stock rows */
+.lps-row.no-stock::before {
+  border-color: var(--lps-danger);
+  background: linear-gradient(90deg, rgba(220,38,38,.05), rgba(220,38,38,.02));
+  box-shadow: 0 1px 3px -1px rgba(220,38,38,.35);
+}
+.lps-row.no-stock:hover::before {
+  border-color: var(--lps-danger);
+  box-shadow: 0 1px 3px -1px rgba(220,38,38,.4);
+  transform: none;
+}
+.lps-row.no-stock .lps-thumb {
+  border-color: var(--lps-danger);
+  background: rgba(220,38,38,.12);
+}
+.lps-row.no-stock .lps-name,
+.lps-row.no-stock .lps-price,
+.lps-row.no-stock .lps-id,
+.lps-row.no-stock .lps-stock {
+  color: #ef4444 !important;
+}
+.lps-row.no-stock { cursor: default; }
 
 /* Thumbnail */
 .lps-thumb {
@@ -451,6 +473,13 @@
     gap: .75rem;
     padding: .5rem var(--pad-x);
   }
+  /* Allow rows to grow vertically so long product names do not get truncated with ellipsis */
+  .lps-row {
+    min-height: auto; /* let content determine height */
+    align-items: flex-start;
+    padding-top: .6rem;
+    padding-bottom: .6rem;
+  }
   .lps-thumb {
     width: 50px;
     min-width: 50px;
@@ -458,9 +487,18 @@
   }
   .lps-name {
     font-size: .88rem;
+    /* On small screens allow the product name to wrap into multiple lines */
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    display: block;
+    /* allow long single tokens to break */
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
   .lps-price {
     font-size: .82rem;
+    align-self: flex-start; /* keep price at the top-right */
   }
   .lps-id,
   .lps-stock {
@@ -471,6 +509,10 @@
     flex-direction: column;
     align-items: stretch;
   }
+
+  /* Make sure the first line stacks properly and the second line clears below it */
+  .lps-line1 { align-items: flex-start; gap: .6rem; }
+  .lps-line2 { margin-top: .35rem; }
 
   /* FIX: evitar que el campo de búsqueda crezca y deje espacio vacío */
   .lps-field.grow {
@@ -648,7 +690,7 @@
   right: 1rem !important;
   left: auto !important;
   max-width: 420px !important;
-  z-index: var(--layer-toast, 3000) !important;
+  z-index: 99999 !important;
 }
 
 @keyframes app-toast-in {
@@ -714,26 +756,30 @@
 }
 
 .lps-qty-control {
+  --lps-qty-btn-size: 36px; /* default button size */
   display: flex;
-  align-items: stretch;
-  gap: .65rem;
+  align-items: center;
+  gap: .45rem;
   justify-content: center;
+  padding: 0 .15rem;
 }
 
 .lps-qty-btn {
-  width: 3.1rem;
-  aspect-ratio: 1 / 1;
+  width: var(--lps-qty-btn-size);
+  height: var(--lps-qty-btn-size);
+  min-width: var(--lps-qty-btn-size);
   border: 1px solid var(--lps-border);
   background: color-mix(in srgb, var(--lps-surface), var(--lps-primary) 6%);
   color: var(--lps-text);
-  font-size: 1.4rem;
+  font-size: 1.1rem;
   font-weight: 600;
-  border-radius: 14px;
+  border-radius: 10px;
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   transition: background var(--lps-transition), border-color var(--lps-transition), transform .12s;
+  box-sizing: border-box;
 }
 .lps-qty-btn:hover:not(:disabled),
 .lps-qty-btn:focus-visible:not(:disabled) {
@@ -750,17 +796,20 @@
 }
 
 .lps-qty-input {
-  width: 5.2rem;
+  flex: 1 1 auto;
+  min-width: 3rem;
+  max-width: 6.2rem;
   text-align: center;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 600;
-  padding: .55rem .4rem;
+  padding: .45rem .35rem;
   border: 1px solid var(--lps-border);
-  border-radius: 14px;
+  border-radius: 10px;
   background: var(--lps-bg);
   color: var(--lps-text);
   appearance: textfield;
   -moz-appearance: textfield;
+  box-sizing: border-box;
 }
 .lps-qty-input:focus {
   border-color: var(--lps-primary);

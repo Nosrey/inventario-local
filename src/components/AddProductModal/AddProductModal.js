@@ -29,6 +29,15 @@ function AddProductModal({ isOpen, onClose, onAddProduct, onDeleteProduct, inven
 
   const [imagePreviews, setImagePreviews] = useState([]); // previews de imágenes
   const fileInputRef = useRef(null); // <-- NUEVO: ref al input file
+  const [uploadProgress, setUploadProgress] = useState({});
+  const [isUploading, setIsUploading] = useState(false);
+  const [notification, setNotification] = useState({ message: '', type: '' });
+
+  const showNotification = (message, type = 'error', duration = 4000) => {
+    setNotification({ message, type });
+    try { window.clearTimeout(showNotification._t); } catch (e) {}
+    showNotification._t = window.setTimeout(() => setNotification({ message: '', type: '' }), duration);
+  };
 
   const isEditMode = !!productToEdit;
 
@@ -90,10 +99,7 @@ function AddProductModal({ isOpen, onClose, onAddProduct, onDeleteProduct, inven
   // --- 2. HANDLERS Y LÓGICA VAN DESPUÉS DE LOS HOOKS ---
   const handleCreateNewBrand = async (e) => {
     e.preventDefault();
-    if (!newBrandName.trim()) {
-      alert('El nombre de la marca no puede estar vacío.');
-      return;
-    }
+    if (!newBrandName.trim()) { showNotification('El nombre de la marca no puede estar vacío.', 'error'); return; }
     // Evita crear duplicados: revisar lista local primero
     const nameTrim = normalizeName(newBrandName);
     const foundLocal = (brands || []).find(b => normalizeName(b.name || '') === nameTrim);
@@ -101,7 +107,7 @@ function AddProductModal({ isOpen, onClose, onAddProduct, onDeleteProduct, inven
       setBrandId(foundLocal.id);
       setIsNewBrandModalOpen(false);
       setNewBrandName('');
-      alert(`La marca ya existe. Se ha seleccionado la marca existente: ${foundLocal.name || nameTrim}`);
+      showNotification(`La marca ya existe. Se ha seleccionado la marca existente: ${foundLocal.name || nameTrim}`, 'info');
       return;
     }
 
@@ -121,10 +127,7 @@ function AddProductModal({ isOpen, onClose, onAddProduct, onDeleteProduct, inven
 
   const handleCreateNewInventory = async (e) => {
     e.preventDefault();
-    if (!newInventoryName.trim()) {
-      alert('El nombre del inventario no puede estar vacío.');
-      return;
-    }
+    if (!newInventoryName.trim()) { showNotification('El nombre del inventario no puede estar vacío.', 'error'); return; }
     // Evita duplicados locales por nombre
     const nameTrim = normalizeName(newInventoryName);
     const foundLocal = (inventories || []).find(i => normalizeName(i.name || '') === nameTrim);
@@ -136,7 +139,7 @@ function AddProductModal({ isOpen, onClose, onAddProduct, onDeleteProduct, inven
       setSelectedInventory(foundLocal.id);
       setIsNewInventoryModalOpen(false);
       setNewInventoryName('');
-      alert(`El inventario ya existe. Se ha seleccionado: ${foundLocal.name || nameTrim}`);
+      showNotification(`El inventario ya existe. Se ha seleccionado: ${foundLocal.name || nameTrim}`, 'info');
       return;
     }
 
@@ -192,15 +195,34 @@ function AddProductModal({ isOpen, onClose, onAddProduct, onDeleteProduct, inven
   // Al confirmar: envía cantidades exactas (sin restar 1, sin diferenciales)
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
-    await onAddProduct({
-      docId: productToEdit?.docId || null,
-      name,
-      price,
-      cost,
-      minQuantity,
-      brandId,
-      inventories: inventoryQuantities.map(i => ({ inventoryId: i.inventoryId, quantity: toInt(i.quantity) }))
-    });
+    // collect files
+    let files = [];
+    try { files = Array.from(fileInputRef.current?.files || []); } catch (e) { files = []; }
+
+    const progressCb = (p) => {
+      setUploadProgress(prev => {
+        const next = { ...prev };
+        const idx = p.fileIndex || 0;
+        next[idx] = { ...(next[idx] || {}), [p.variant]: Math.round(p.percent || 0) };
+        return next;
+      });
+    };
+
+    try {
+      setIsUploading(true);
+      await onAddProduct({
+        docId: productToEdit?.docId || null,
+        name,
+        price,
+        cost,
+        minQuantity,
+        brandId,
+        inventories: inventoryQuantities.map(i => ({ inventoryId: i.inventoryId, quantity: toInt(i.quantity) })),
+        imageFiles: files
+      }, progressCb);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleAddInventoryToList = () => {
@@ -375,15 +397,26 @@ function AddProductModal({ isOpen, onClose, onAddProduct, onDeleteProduct, inven
               <div className="apm-section">
                 <div className="apm-row">
                   <div className="field">
-                    <label>Imágenes</label>
+                    <label>Imagen</label>
                     <div className="file-upload">
-                      <input id="product-images" ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImagesSelected} />
-                      <label className="upload-btn" htmlFor="product-images">Subir imágenes</label>
+                      <input id="product-images" ref={fileInputRef} type="file" accept="image/*" capture="environment" multiple onChange={handleImagesSelected} />
+                      <label className="upload-btn" htmlFor="product-images" aria-label={imagePreviews.length ? 'Editar imagen' : 'Subir imagen'}>{imagePreviews.length ? 'Editar' : 'Subir'}</label>
                       <span className="upload-hint">PNG, JPG. Máx. 5MB c/u</span>
                       {imagePreviews.length > 0 && (
                         <div className="image-previews">
                           {imagePreviews.map((p, idx) => (
-                            <figure className="thumb" key={idx}><img src={p.url} alt={p.name} /></figure>
+                            <figure className="thumb" key={idx}>
+                              <img src={p.url} alt={p.name} />
+                              <div style={{ fontSize: '0.75rem', textAlign: 'center' }}>{p.name}</div>
+                              {isUploading && (
+                                <div style={{ display:'flex', gap:8, alignItems:'center', justifyContent:'center' }}>
+                                  <div style={{ width: 140, height: 8, background: '#eee', borderRadius: 6 }}>
+                                    <div style={{ width: `${uploadProgress[idx]?.full || 0}%`, height: '100%', background: '#2b8aef', borderRadius: 6 }} />
+                                  </div>
+                                  <div style={{ fontSize: '0.75rem', minWidth: 36 }}>{uploadProgress[idx]?.full ?? 0}%</div>
+                                </div>
+                              )}
+                            </figure>
                           ))}
                         </div>
                       )}
@@ -445,7 +478,7 @@ function AddProductModal({ isOpen, onClose, onAddProduct, onDeleteProduct, inven
                   <button type="button" className="btn danger" onClick={handleDeleteClick} disabled={loading} style={{ marginRight:'auto' }}>{loading ? 'Eliminando...' : 'Eliminar Producto'}</button>
                 )}
                 <button type="button" className="btn secondary" onClick={onClose} disabled={loading}>Cancelar</button>
-                <button type="submit" className="btn primary" disabled={loading || (inventories.length === 0 && !isEditMode)}>{loading ? 'Guardando...' : (isEditMode ? 'Guardar Cambios' : 'Guardar Producto')}</button>
+                <button type="submit" className="btn primary" disabled={loading || isUploading || (inventories.length === 0 && !isEditMode)}>{loading || isUploading ? 'Guardando...' : (isEditMode ? 'Guardar Cambios' : 'Guardar Producto')}</button>
               </footer>
             </form>
           )}
