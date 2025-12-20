@@ -57,11 +57,11 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
         const t = tabs.find(x => x.id === activeTabId);
         return t ? t.cart : [];
     }, [tabs, activeTabId]);
-    
+
     // Cleanup for any pending notice timeout to avoid setting state after unmount
     React.useEffect(() => {
         return () => {
-            try { if (showNotification._t) clearTimeout(showNotification._t); } catch (e) {}
+            try { if (showNotification._t) clearTimeout(showNotification._t); } catch (e) { }
         };
     }, []);
 
@@ -226,9 +226,9 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
             customersCacheRef.current = m;
             customersCacheLoadedRef.current = true;
             const arrVals = Array.from(m.values()).map(v => ({ ...v }));
-            try { localStorage.setItem('customers:cache_v1', JSON.stringify(arrVals)); } catch (e) {}
+            try { localStorage.setItem('customers:cache_v1', JSON.stringify(arrVals)); } catch (e) { }
             // update visible list (keep sorted by name)
-            setCustomersList(Array.from(m.values()).sort((a,b) => (a.name||'').localeCompare(b.name||'')).slice(0,1000));
+            setCustomersList(Array.from(m.values()).sort((a, b) => (a.name || '').localeCompare(b.name || '')).slice(0, 1000));
         } catch (e) {
             console.debug('upsertCustomerToLocalCache error', e);
         }
@@ -260,7 +260,7 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                     const phone = c.phone || '';
                     const address = c.address || '';
                     const existing = m.get(ced);
-                    const payload = { name, phone, address, cedula: ced, name_lower: (name||'').toLowerCase() };
+                    const payload = { name, phone, address, cedula: ced, name_lower: (name || '').toLowerCase() };
                     if (existing) {
                         if (existing.name === name && existing.phone === phone && existing.address === address) {
                             skipped++;
@@ -301,8 +301,8 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                 m.set(ced, { id: ced, cedula: ced, name: payload.name, phone: payload.phone, address: payload.address, name_lower: payload.name_lower });
             }
             customersCacheRef.current = m;
-            try { localStorage.setItem('customers:cache_v1', JSON.stringify(Array.from(m.values()))); } catch (e) {}
-            setCustomersList(Array.from(m.values()).sort((a,b) => (a.name||'').localeCompare(b.name||'')).slice(0,1000));
+            try { localStorage.setItem('customers:cache_v1', JSON.stringify(Array.from(m.values()))); } catch (e) { }
+            setCustomersList(Array.from(m.values()).sort((a, b) => (a.name || '').localeCompare(b.name || '')).slice(0, 1000));
             showNotification(`Importación completada: ${added} nuevos, ${updated} actualizados, ${skipped} omitidos.`, 'success', 6000);
         } catch (err) {
             console.error('Error importando clientes desde historial:', err);
@@ -330,7 +330,7 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                     customersCacheRef.current = m;
                     customersCacheLoadedRef.current = true;
                     // populate list state
-                    setCustomersList(Array.from(m.values()).sort((a,b) => (a.name||'').localeCompare(b.name||'') ).slice(0,1000));
+                    setCustomersList(Array.from(m.values()).sort((a, b) => (a.name || '').localeCompare(b.name || '')).slice(0, 1000));
                 }
             }
         } catch (e) {
@@ -361,9 +361,9 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                 customersCacheRef.current = m;
                 customersCacheLoadedRef.current = true;
                 const arrVals = Array.from(m.values()).map(v => ({ ...v }));
-                try { localStorage.setItem('customers:cache_v1', JSON.stringify(arrVals)); } catch (e) {}
+                try { localStorage.setItem('customers:cache_v1', JSON.stringify(arrVals)); } catch (e) { }
                 // update visible list
-                setCustomersList(Array.from(m.values()).sort((a,b) => (a.name||'').localeCompare(b.name||'')).slice(0,1000));
+                setCustomersList(Array.from(m.values()).sort((a, b) => (a.name || '').localeCompare(b.name || '')).slice(0, 1000));
             } catch (e) {
                 if (!warnedSnapshotError) {
                     console.debug('customers onSnapshot error', e);
@@ -406,50 +406,50 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
             return name.includes(q) || ced.includes(q);
         };
 
-            // Follow last-edited input (filterSource):
-            // - if panel was last edited -> filter only by panel input
-            // - if name or id was last edited -> filter by the combination of name and id inputs
-            // - fallback: if no explicit source, prefer name/id if present, else panel
-            const src = filterSource || (nameInput || idInput ? 'nameid' : (qPanel ? 'panel' : null));
+        // Follow last-edited input (filterSource):
+        // - if panel was last edited -> filter only by panel input
+        // - if name or id was last edited -> filter by the combination of name and id inputs
+        // - fallback: if no explicit source, prefer name/id if present, else panel
+        const src = filterSource || (nameInput || idInput ? 'nameid' : (qPanel ? 'panel' : null));
 
-            if (src === 'panel') {
-                if (!qPanel) return all.slice(0, 1000);
-                try {
-                    const res = smartSearch(all, qPanel, { keys: ['name', 'cedula'], nameKey: 'name', maxResults: 1000 });
+        if (src === 'panel') {
+            if (!qPanel) return all.slice(0, 1000);
+            try {
+                const res = smartSearch(all, qPanel, { keys: ['name', 'cedula'], nameKey: 'name', maxResults: 1000 });
+                return res.map(r => r.item);
+            } catch (e) {
+                return all.filter(c => match(c, qPanel)).slice(0, 1000);
+            }
+        }
+
+        // name/id combined mode
+        if (src === 'name' || src === 'id' || src === 'nameid' || src === null) {
+            // if neither name nor id provided, show all (or panel if explicit qPanel exists and no name/id)
+            if (!nameInput && !idInput) {
+                if (qPanel) return all.filter(c => match(c, qPanel)).slice(0, 1000);
+                return all.slice(0, 1000);
+            }
+            // Combine name and id into one fuzzy query when both present
+            try {
+                const queryParts = [];
+                if (nameInput) queryParts.push(nameInput);
+                if (idInput) queryParts.push(idInput);
+                const combinedQ = queryParts.join(' ');
+                if (combinedQ) {
+                    const res = smartSearch(all, combinedQ, { keys: ['name', 'cedula'], nameKey: 'name', maxResults: 1000 });
                     return res.map(r => r.item);
-                } catch (e) {
-                    return all.filter(c => match(c, qPanel)).slice(0, 1000);
                 }
+                return all.slice(0, 1000);
+            } catch (e) {
+                return all.filter(c => {
+                    const nameMatch = nameInput ? (c.name || '').toLowerCase().includes(nameInput) : true;
+                    const idMatch = idInput ? (c.cedula || c.id || '').toLowerCase().includes(idInput) : true;
+                    return nameMatch && idMatch;
+                }).slice(0, 1000);
             }
+        }
 
-            // name/id combined mode
-            if (src === 'name' || src === 'id' || src === 'nameid' || src === null) {
-                // if neither name nor id provided, show all (or panel if explicit qPanel exists and no name/id)
-                if (!nameInput && !idInput) {
-                    if (qPanel) return all.filter(c => match(c, qPanel)).slice(0, 1000);
-                    return all.slice(0, 1000);
-                }
-                // Combine name and id into one fuzzy query when both present
-                try {
-                    const queryParts = [];
-                    if (nameInput) queryParts.push(nameInput);
-                    if (idInput) queryParts.push(idInput);
-                    const combinedQ = queryParts.join(' ');
-                    if (combinedQ) {
-                        const res = smartSearch(all, combinedQ, { keys: ['name', 'cedula'], nameKey: 'name', maxResults: 1000 });
-                        return res.map(r => r.item);
-                    }
-                    return all.slice(0, 1000);
-                } catch (e) {
-                    return all.filter(c => {
-                        const nameMatch = nameInput ? (c.name || '').toLowerCase().includes(nameInput) : true;
-                        const idMatch = idInput ? (c.cedula || c.id || '').toLowerCase().includes(idInput) : true;
-                        return nameMatch && idMatch;
-                    }).slice(0, 1000);
-                }
-            }
-
-            return all.slice(0, 1000);
+        return all.slice(0, 1000);
     }, [customersList, customersFilter, activeCustomer.name, activeCustomer.id, filterSource]);
 
     // Keep panelActiveIndex within bounds when filteredCustomers changes
@@ -558,7 +558,7 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                     try {
                         const snap = await getDoc(doc(db, 'customers', normalized));
                         if (snap.exists()) suggestions.push(sanitizeCustomer(snap.id, snap.data()));
-                    } catch (e) {}
+                    } catch (e) { }
                 }
 
                 // 2) búsqueda por nombre (prefijo) si nombre >= 2 chars
@@ -571,7 +571,7 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                         for (const s of snaps.docs) {
                             if (!suggestions.find(x => x.id === s.id)) suggestions.push(sanitizeCustomer(s.id, s.data()));
                         }
-                    } catch (e) {}
+                    } catch (e) { }
                 }
 
                 setCustomerSuggestions(suggestions.slice(0, 10));
@@ -608,7 +608,7 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
     const lastOperationRef = useRef(null);
 
     const clearRetry = () => {
-        try { if (retryRef.current.timer) clearInterval(retryRef.current.timer); } catch (e) {}
+        try { if (retryRef.current.timer) clearInterval(retryRef.current.timer); } catch (e) { }
         retryRef.current = { timer: null, running: false, resolve: null, reject: null };
     };
 
@@ -630,12 +630,12 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                 setNotification({ message: `${errMsg}. Reintentando...`, type: 'error', retryCountdown: seconds, persistent: true });
                 retryRef.current.attempt = attempt;
                 retryRef.current.lastErrMsg = errMsg;
-                try { if (retryRef.current.timer) clearInterval(retryRef.current.timer); } catch (e) {}
+                try { if (retryRef.current.timer) clearInterval(retryRef.current.timer); } catch (e) { }
                 retryRef.current.timer = setInterval(async () => {
                     seconds -= 1;
                     setNotification(prev => prev ? { ...prev, retryCountdown: seconds } : prev);
                     if (seconds <= 0) {
-                        try { clearInterval(retryRef.current.timer); } catch (e) {}
+                        try { clearInterval(retryRef.current.timer); } catch (e) { }
                         seconds = autoSeconds;
                         try { await attempt(); } catch (e) { /* will reenter catch and restart timer */ }
                     }
@@ -670,16 +670,16 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
     const [priceEditMap, setPriceEditMap] = useState({});
 
     const commitPriceEdit = (docId) => {
-      const raw = priceEditMap[docId];
-      if (raw === undefined) return;
-      // Llama al handler que ya actualiza el carrito
-      handleAdjustedUsdChange(docId, raw);
-      // limpiar estado temporal
-      setPriceEditMap(prev => {
-        const next = { ...prev };
-        delete next[docId];
-        return next;
-      });
+        const raw = priceEditMap[docId];
+        if (raw === undefined) return;
+        // Llama al handler que ya actualiza el carrito
+        handleAdjustedUsdChange(docId, raw);
+        // limpiar estado temporal
+        setPriceEditMap(prev => {
+            const next = { ...prev };
+            delete next[docId];
+            return next;
+        });
     };
 
     // --- NUEVO: caché local + reconciliación con stock al cargar ---
@@ -693,204 +693,204 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
     const loadedFromCacheRef = useRef(false);
 
     const reconcileTabsWithStock = (tabsToRecon, invId) => {
-      const inv = inventories.find(i => i.id === invId) || inventories[0];
-      if (!inv) return { tabs: tabsToRecon, adjustments: [] };
+        const inv = inventories.find(i => i.id === invId) || inventories[0];
+        if (!inv) return { tabs: tabsToRecon, adjustments: [] };
 
-      // clone tabs
-      const clone = tabsToRecon.map(t => ({ ...t, cart: (t.cart || []).map(i => ({ ...i })) }));
-      const activeIdx = clone.findIndex(t => t.id === activeTabId) !== -1 ? clone.findIndex(t => t.id === activeTabId) : 0;
-      const activeTab = clone[activeIdx];
+        // clone tabs
+        const clone = tabsToRecon.map(t => ({ ...t, cart: (t.cart || []).map(i => ({ ...i })) }));
+        const activeIdx = clone.findIndex(t => t.id === activeTabId) !== -1 ? clone.findIndex(t => t.id === activeTabId) : 0;
+        const activeTab = clone[activeIdx];
 
-      // collect product ids present in any tab
-      const allPids = new Set();
-      for (const t of clone) for (const it of t.cart || []) if (it?.docId) allPids.add(it.docId);
+        // collect product ids present in any tab
+        const allPids = new Set();
+        for (const t of clone) for (const it of t.cart || []) if (it?.docId) allPids.add(it.docId);
 
-      const adjustments = [];
+        const adjustments = [];
 
-      for (const pid of allPids) {
-        const totalStock = Number(inv.products?.[pid]?.quantity) || 0;
-        const desiredActive = Number((activeTab.cart.find(i => i.docId === pid) || { quantity: 0 }).quantity) || 0;
+        for (const pid of allPids) {
+            const totalStock = Number(inv.products?.[pid]?.quantity) || 0;
+            const desiredActive = Number((activeTab.cart.find(i => i.docId === pid) || { quantity: 0 }).quantity) || 0;
 
-        // If active desires more than totalStock, cap active and zero others
-        if (desiredActive >= totalStock) {
-          const newActiveQty = Math.min(desiredActive, totalStock);
-          if (newActiveQty !== desiredActive) {
-            const item = activeTab.cart.find(i => i.docId === pid);
-            if (item) {
-              adjustments.push(`${item.name || pid} (pestaña ${activeTab.id}): ${desiredActive}→${newActiveQty}`);
-              item.quantity = newActiveQty;
+            // If active desires more than totalStock, cap active and zero others
+            if (desiredActive >= totalStock) {
+                const newActiveQty = Math.min(desiredActive, totalStock);
+                if (newActiveQty !== desiredActive) {
+                    const item = activeTab.cart.find(i => i.docId === pid);
+                    if (item) {
+                        adjustments.push(`${item.name || pid} (pestaña ${activeTab.id}): ${desiredActive}→${newActiveQty}`);
+                        item.quantity = newActiveQty;
+                    }
+                }
+                // zero others
+                for (const t of clone) {
+                    if (t.id === activeTab.id) continue;
+                    const it = t.cart.find(i => i.docId === pid);
+                    if (it && Number(it.quantity) > 0) {
+                        adjustments.push(`${it.name || pid} (pestaña ${t.id}): ${it.quantity}→0`);
+                        it.quantity = 0;
+                    }
+                }
+            } else {
+                // keep active desired, distribute remaining to other tabs in ascending order
+                let remaining = totalStock - desiredActive;
+                for (const t of clone.filter(t => t.id !== activeTab.id).sort((a, b) => Number(a.id) - Number(b.id))) {
+                    const it = t.cart.find(i => i.docId === pid);
+                    if (!it) continue;
+                    const old = Number(it.quantity) || 0;
+                    const allowed = Math.min(old, remaining);
+                    if (old !== allowed) {
+                        adjustments.push(`${it.name || pid} (pestaña ${t.id}): ${old}→${allowed}`);
+                        it.quantity = allowed;
+                    }
+                    remaining = Math.max(0, remaining - allowed);
+                }
             }
-          }
-          // zero others
-          for (const t of clone) {
-            if (t.id === activeTab.id) continue;
-            const it = t.cart.find(i => i.docId === pid);
-            if (it && Number(it.quantity) > 0) {
-              adjustments.push(`${it.name || pid} (pestaña ${t.id}): ${it.quantity}→0`);
-              it.quantity = 0;
-            }
-          }
-        } else {
-          // keep active desired, distribute remaining to other tabs in ascending order
-          let remaining = totalStock - desiredActive;
-          for (const t of clone.filter(t => t.id !== activeTab.id).sort((a,b) => Number(a.id) - Number(b.id))) {
-            const it = t.cart.find(i => i.docId === pid);
-            if (!it) continue;
-            const old = Number(it.quantity) || 0;
-            const allowed = Math.min(old, remaining);
-            if (old !== allowed) {
-              adjustments.push(`${it.name || pid} (pestaña ${t.id}): ${old}→${allowed}`);
-              it.quantity = allowed;
-            }
-            remaining = Math.max(0, remaining - allowed);
-          }
         }
-      }
 
-      return { tabs: clone, adjustments };
+        return { tabs: clone, adjustments };
     };
 
-        // --- Versión mejorada de carga de cache en dos fases ---
-        // 1) carga rápida al montar para restaurar inmediatamente tras F5 (no depende de inventories)
-        // 2) cuando inventories esté disponible, hacer reconciliación inteligente con stock y aplicar ajustes
-        const quickLoadedRef = useRef(false);
-        const notifiedLoadedRef = useRef(false);
+    // --- Versión mejorada de carga de cache en dos fases ---
+    // 1) carga rápida al montar para restaurar inmediatamente tras F5 (no depende de inventories)
+    // 2) cuando inventories esté disponible, hacer reconciliación inteligente con stock y aplicar ajustes
+    const quickLoadedRef = useRef(false);
+    const notifiedLoadedRef = useRef(false);
 
-        useEffect(() => {
-            if (quickLoadedRef.current) return;
-            try {
-                // intentamos leer anon y user (si existe); priorizamos user si está presente
-                const keys = [];
-                if (user?.uid) keys.push(`cashier:state:${user.uid}`);
-                keys.push('cashier:state:anon');
+    useEffect(() => {
+        if (quickLoadedRef.current) return;
+        try {
+            // intentamos leer anon y user (si existe); priorizamos user si está presente
+            const keys = [];
+            if (user?.uid) keys.push(`cashier:state:${user.uid}`);
+            keys.push('cashier:state:anon');
 
-                let raw = null;
-                for (const k of keys) {
-                    const r = localStorage.getItem(k);
-                    if (r) { raw = r; break; }
-                }
-                if (!raw) { quickLoadedRef.current = true; return; }
-                const parsed = JSON.parse(raw);
-                const quickCount = Array.isArray(parsed.tabs) ? parsed.tabs.reduce((s, t) => s + ((t.cart && Array.isArray(t.cart)) ? t.cart.reduce((ss, it) => ss + (Number(it.quantity) || 0), 0) : 0), 0) : 0;
-                if (!parsed || !Array.isArray(parsed.tabs)) { quickLoadedRef.current = true; return; }
-
-                // Normalizar/llenar tabs faltantes (asegura 9 pestañas con ids 1..9)
-                const cachedTabs = Array.from({ length: 9 }, (_, i) => {
-                    const found = parsed.tabs.find(t => t.id === String(i+1));
-                    if (found) {
-                        // sanitize: do NOT restore customer.notes or paymentMethod from persisted state
-                        const cust = found.customer || { name: '', phone: '', id: '', address: '' };
-                        const sanitizedCust = { name: cust.name || '', phone: cust.phone || '', id: cust.id || '', address: cust.address || '' };
-                        return { id: String(i+1), name: String(i+1), cart: (found.cart || []).map(it => ({ ...it })), customer: sanitizedCust, paymentMethod: '' };
-                    }
-                    return { id: String(i+1), name: String(i+1), cart: [], customer: { name: '', phone: '', id: '', address: '' }, paymentMethod: '' };
-                });
-
-                // Aplicar inmediatamente los tabs recuperados para que la UI muestre la sesión restaurada
-                setTabs(cachedTabs);
-
-                // Mostrar notificación genérica si se restauraron items
-                if (!notifiedLoadedRef.current && quickCount > 0) {
-                    showNotification('Se cargaron los datos de la sesión anterior.', 'info', 5000);
-                    notifiedLoadedRef.current = true;
-                }
-
-                // Restaurar activeTabId (si viene en payload)
-                if (parsed.activeTabId && typeof parsed.activeTabId === 'string') {
-                    setActiveTabId(parsed.activeTabId);
-                }
-                // Restaurar activeInventoryId si existe (no validamos aún contra inventories)
-                if (parsed.activeInventoryId && typeof parsed.activeInventoryId === 'string') {
-                    setActiveInventoryId(parsed.activeInventoryId);
-                }
-            } catch (err) {
-                console.warn('Error al cargar cache (rápido) de cashier:', err);
-            } finally {
-                quickLoadedRef.current = true;
+            let raw = null;
+            for (const k of keys) {
+                const r = localStorage.getItem(k);
+                if (r) { raw = r; break; }
             }
-        }, []); // ejecutar sólo al montar
+            if (!raw) { quickLoadedRef.current = true; return; }
+            const parsed = JSON.parse(raw);
+            const quickCount = Array.isArray(parsed.tabs) ? parsed.tabs.reduce((s, t) => s + ((t.cart && Array.isArray(t.cart)) ? t.cart.reduce((ss, it) => ss + (Number(it.quantity) || 0), 0) : 0), 0) : 0;
+            if (!parsed || !Array.isArray(parsed.tabs)) { quickLoadedRef.current = true; return; }
 
-        // segunda fase: cuando inventories o user estén disponibles, reconciliar con stock y aplicar ajustes definitivos
-        useEffect(() => {
-            if (loadedFromCacheRef.current) return;
-            if (!inventories.length) return;
-            const keys = makeCacheKeys();
-            try {
-                let raw = null;
-                let usedKey = null;
-                for (const k of keys) {
-                    const r = localStorage.getItem(k);
-                    if (r) { raw = r; usedKey = k; break; }
+            // Normalizar/llenar tabs faltantes (asegura 9 pestañas con ids 1..9)
+            const cachedTabs = Array.from({ length: 9 }, (_, i) => {
+                const found = parsed.tabs.find(t => t.id === String(i + 1));
+                if (found) {
+                    // sanitize: do NOT restore customer.notes or paymentMethod from persisted state
+                    const cust = found.customer || { name: '', phone: '', id: '', address: '' };
+                    const sanitizedCust = { name: cust.name || '', phone: cust.phone || '', id: cust.id || '', address: cust.address || '' };
+                    return { id: String(i + 1), name: String(i + 1), cart: (found.cart || []).map(it => ({ ...it })), customer: sanitizedCust, paymentMethod: '' };
                 }
-                if (!raw) { loadedFromCacheRef.current = true; return; }
-                const parsed = JSON.parse(raw);
-                const finalCount = Array.isArray(parsed.tabs) ? parsed.tabs.reduce((s, t) => s + ((t.cart && Array.isArray(t.cart)) ? t.cart.reduce((ss, it) => ss + (Number(it.quantity) || 0), 0) : 0), 0) : 0;
-                if (!parsed || !Array.isArray(parsed.tabs)) { loadedFromCacheRef.current = true; return; }
+                return { id: String(i + 1), name: String(i + 1), cart: [], customer: { name: '', phone: '', id: '', address: '' }, paymentMethod: '' };
+            });
 
-                // Normalizar/llenar tabs faltantes (asegura 9 pestañas con ids 1..9)
-                const cachedTabs = Array.from({ length: 9 }, (_, i) => {
-                    const found = parsed.tabs.find(t => t.id === String(i+1));
-                    if (found) {
-                        const cust = found.customer || { name: '', phone: '', id: '', address: '' };
-                        const sanitizedCust = { name: cust.name || '', phone: cust.phone || '', id: cust.id || '', address: cust.address || '' };
-                        return { id: String(i+1), name: String(i+1), cart: (found.cart || []).map(it => ({ ...it })), customer: sanitizedCust, paymentMethod: '' };
-                    }
-                    return { id: String(i+1), name: String(i+1), cart: [], customer: { name: '', phone: '', id: '', address: '' }, paymentMethod: '' };
-                });
+            // Aplicar inmediatamente los tabs recuperados para que la UI muestre la sesión restaurada
+            setTabs(cachedTabs);
 
-                // Restablecer activeInventoryId y activeTabId si son válidos
-                if (parsed.activeInventoryId && inventories.some(i => i.id === parsed.activeInventoryId)) {
-                    setActiveInventoryId(parsed.activeInventoryId);
-                }
-                if (parsed.activeTabId && typeof parsed.activeTabId === 'string') {
-                    setActiveTabId(parsed.activeTabId);
-                }
-
-                // Reconciliar cantidades con stock actual
-                const invIdToUse = parsed.activeInventoryId && inventories.some(i=>i.id===parsed.activeInventoryId) ? parsed.activeInventoryId : (inventories[0]?.id || null);
-                const { tabs: adjustedTabs, adjustments } = reconcileTabsWithStock(cachedTabs, invIdToUse);
-                setTabs(adjustedTabs);
-                // If not yet notified in quick-load, notify now when there are items
-                if (!notifiedLoadedRef.current && finalCount > 0) {
-                    showNotification('Se cargaron los datos de la sesión anterior.', 'info', 5000);
-                    notifiedLoadedRef.current = true;
-                }
-            } catch (err) {
-                console.warn('Error al cargar cache de cashier (reconciliación):', err);
-            } finally {
-                loadedFromCacheRef.current = true;
+            // Mostrar notificación genérica si se restauraron items
+            if (!notifiedLoadedRef.current && quickCount > 0) {
+                showNotification('Se cargaron los datos de la sesión anterior.', 'info', 5000);
+                notifiedLoadedRef.current = true;
             }
-        }, [inventories, user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
+
+            // Restaurar activeTabId (si viene en payload)
+            if (parsed.activeTabId && typeof parsed.activeTabId === 'string') {
+                setActiveTabId(parsed.activeTabId);
+            }
+            // Restaurar activeInventoryId si existe (no validamos aún contra inventories)
+            if (parsed.activeInventoryId && typeof parsed.activeInventoryId === 'string') {
+                setActiveInventoryId(parsed.activeInventoryId);
+            }
+        } catch (err) {
+            console.warn('Error al cargar cache (rápido) de cashier:', err);
+        } finally {
+            quickLoadedRef.current = true;
+        }
+    }, []); // ejecutar sólo al montar
+
+    // segunda fase: cuando inventories o user estén disponibles, reconciliar con stock y aplicar ajustes definitivos
+    useEffect(() => {
+        if (loadedFromCacheRef.current) return;
+        if (!inventories.length) return;
+        const keys = makeCacheKeys();
+        try {
+            let raw = null;
+            let usedKey = null;
+            for (const k of keys) {
+                const r = localStorage.getItem(k);
+                if (r) { raw = r; usedKey = k; break; }
+            }
+            if (!raw) { loadedFromCacheRef.current = true; return; }
+            const parsed = JSON.parse(raw);
+            const finalCount = Array.isArray(parsed.tabs) ? parsed.tabs.reduce((s, t) => s + ((t.cart && Array.isArray(t.cart)) ? t.cart.reduce((ss, it) => ss + (Number(it.quantity) || 0), 0) : 0), 0) : 0;
+            if (!parsed || !Array.isArray(parsed.tabs)) { loadedFromCacheRef.current = true; return; }
+
+            // Normalizar/llenar tabs faltantes (asegura 9 pestañas con ids 1..9)
+            const cachedTabs = Array.from({ length: 9 }, (_, i) => {
+                const found = parsed.tabs.find(t => t.id === String(i + 1));
+                if (found) {
+                    const cust = found.customer || { name: '', phone: '', id: '', address: '' };
+                    const sanitizedCust = { name: cust.name || '', phone: cust.phone || '', id: cust.id || '', address: cust.address || '' };
+                    return { id: String(i + 1), name: String(i + 1), cart: (found.cart || []).map(it => ({ ...it })), customer: sanitizedCust, paymentMethod: '' };
+                }
+                return { id: String(i + 1), name: String(i + 1), cart: [], customer: { name: '', phone: '', id: '', address: '' }, paymentMethod: '' };
+            });
+
+            // Restablecer activeInventoryId y activeTabId si son válidos
+            if (parsed.activeInventoryId && inventories.some(i => i.id === parsed.activeInventoryId)) {
+                setActiveInventoryId(parsed.activeInventoryId);
+            }
+            if (parsed.activeTabId && typeof parsed.activeTabId === 'string') {
+                setActiveTabId(parsed.activeTabId);
+            }
+
+            // Reconciliar cantidades con stock actual
+            const invIdToUse = parsed.activeInventoryId && inventories.some(i => i.id === parsed.activeInventoryId) ? parsed.activeInventoryId : (inventories[0]?.id || null);
+            const { tabs: adjustedTabs, adjustments } = reconcileTabsWithStock(cachedTabs, invIdToUse);
+            setTabs(adjustedTabs);
+            // If not yet notified in quick-load, notify now when there are items
+            if (!notifiedLoadedRef.current && finalCount > 0) {
+                showNotification('Se cargaron los datos de la sesión anterior.', 'info', 5000);
+                notifiedLoadedRef.current = true;
+            }
+        } catch (err) {
+            console.warn('Error al cargar cache de cashier (reconciliación):', err);
+        } finally {
+            loadedFromCacheRef.current = true;
+        }
+    }, [inventories, user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Persistir cache cuando cambien tabs / inventario activo / pestaña activa
     useEffect(() => {
-            try {
-                // sanitize tabs: remove customer.notes and paymentMethod before persisting
-                const sanitizedTabs = tabs.map(t => ({
-                    id: t.id,
-                    name: t.name,
-                    cart: (t.cart || []).map(it => ({ ...it })),
-                    customer: { name: t.customer?.name || '', phone: t.customer?.phone || '', id: t.customer?.id || '', address: t.customer?.address || '' },
-                    paymentMethod: ''
-                }));
+        try {
+            // sanitize tabs: remove customer.notes and paymentMethod before persisting
+            const sanitizedTabs = tabs.map(t => ({
+                id: t.id,
+                name: t.name,
+                cart: (t.cart || []).map(it => ({ ...it })),
+                customer: { name: t.customer?.name || '', phone: t.customer?.phone || '', id: t.customer?.id || '', address: t.customer?.address || '' },
+                paymentMethod: ''
+            }));
 
-                const payload = {
-                    tabs: sanitizedTabs,
-                    activeInventoryId,
-                    activeTabId,
-                    savedAt: Date.now()
-                };
-                // Guardar preferente en clave de user (si existe) y siempre actualizar la clave anon como fallback
-                if (user?.uid) {
-                    localStorage.setItem(`cashier:state:${user.uid}`, JSON.stringify(payload));
-                }
-                // Mantener copia anon para recuperaciones rápidas (F5 sin auth resuelta)
-                localStorage.setItem('cashier:state:anon', JSON.stringify(payload));
-            } catch (err) {
-                console.warn('No se pudo guardar cache de cashier:', err);
+            const payload = {
+                tabs: sanitizedTabs,
+                activeInventoryId,
+                activeTabId,
+                savedAt: Date.now()
+            };
+            // Guardar preferente en clave de user (si existe) y siempre actualizar la clave anon como fallback
+            if (user?.uid) {
+                localStorage.setItem(`cashier:state:${user.uid}`, JSON.stringify(payload));
             }
+            // Mantener copia anon para recuperaciones rápidas (F5 sin auth resuelta)
+            localStorage.setItem('cashier:state:anon', JSON.stringify(payload));
+        } catch (err) {
+            console.warn('No se pudo guardar cache de cashier:', err);
+        }
     }, [tabs, activeInventoryId, activeTabId, user?.uid]);
-    
+
     // Mantener settings locales (para no romper dependencias de cálculo)
     React.useEffect(() => {
         setAppSettings({
@@ -1050,7 +1050,7 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
             const unit = calculateAmounts(product.price, appSettings.dolarBCV, appSettings.dolarParalelo);
             const roundedUsdAdj = Number((unit.usdAdjusted || 0).toFixed(2));
             const roundedPrice = Number((product.price || 0).toFixed(2));
-            
+
             return [...prev, {
                 ...product,
                 docId: key,
@@ -1107,7 +1107,7 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
         const inventoryDocRef = doc(db, 'inventories', activeInventoryId);
         const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-    let operationFn = null;
+        let operationFn = null;
 
         try {
             // Validación local de stock
@@ -1128,176 +1128,176 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
             }
 
             // Prepare the remote operation so it can be retried
-                // Ensure a stable saleId for retries: persist pending sale info in localStorage
-                const pendingKey = user?.uid ? `cashier:pending:${user.uid}` : 'cashier:pending:anon';
-                let stored = null;
-                try { stored = JSON.parse(localStorage.getItem(pendingKey) || 'null'); } catch (e) { stored = null; }
-                const saleId = stored?.saleId || `sell_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                // persist minimal payload so retries (or page reloads) use the same saleId
-                try { localStorage.setItem(pendingKey, JSON.stringify({ saleId, createdAt: Date.now() })); } catch (e) {}
+            // Ensure a stable saleId for retries: persist pending sale info in localStorage
+            const pendingKey = user?.uid ? `cashier:pending:${user.uid}` : 'cashier:pending:anon';
+            let stored = null;
+            try { stored = JSON.parse(localStorage.getItem(pendingKey) || 'null'); } catch (e) { stored = null; }
+            const saleId = stored?.saleId || `sell_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+            // persist minimal payload so retries (or page reloads) use the same saleId
+            try { localStorage.setItem(pendingKey, JSON.stringify({ saleId, createdAt: Date.now() })); } catch (e) { }
 
-                operationFn = async () => {
-                    // use a transaction to make the operation atomic and idempotent
-                    const saleRef = doc(db, 'history', 'main', 'sells', saleId);
-                    const to2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
-                    const items = cart.map(item => {
-                        const unit = calculateAmounts(item.price, appSettings.dolarBCV, appSettings.dolarParalelo);
-                        const unitPriceBsRounded = Math.max(0, Math.round(unit.bs));
-                        const subtotalUSD = item.price * item.quantity;
-                        const sub = calculateAmounts(subtotalUSD, appSettings.dolarBCV, appSettings.dolarParalelo);
-                        return {
-                            productDocId: item.docId,
-                            productId: item.id ?? null,
-                            name: item.name,
-                            quantity: item.quantity,
-                            unitPriceUSD: to2(item.price),
-                            ratesUsed: { bcv: to2(appSettings.dolarBCV), paralelo: to2(appSettings.dolarParalelo) },
-                            unitPriceBs: unitPriceBsRounded,
-                            unitPriceUsdAdjusted: to2(unit.usdAdjusted),
-                            subtotalBs: Math.max(0, Math.round(unitPriceBsRounded * (Number(item.quantity) || 0))),
-                            subtotalUsdAdjusted: to2(sub.usdAdjusted),
-                        };
-                    });
+            operationFn = async () => {
+                // use a transaction to make the operation atomic and idempotent
+                const saleRef = doc(db, 'history', 'main', 'sells', saleId);
+                const to2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+                const items = cart.map(item => {
+                    const unit = calculateAmounts(item.price, appSettings.dolarBCV, appSettings.dolarParalelo);
+                    const unitPriceBsRounded = Math.max(0, Math.round(unit.bs));
+                    const subtotalUSD = item.price * item.quantity;
+                    const sub = calculateAmounts(subtotalUSD, appSettings.dolarBCV, appSettings.dolarParalelo);
+                    return {
+                        productDocId: item.docId,
+                        productId: item.id ?? null,
+                        name: item.name,
+                        quantity: item.quantity,
+                        unitPriceUSD: to2(item.price),
+                        ratesUsed: { bcv: to2(appSettings.dolarBCV), paralelo: to2(appSettings.dolarParalelo) },
+                        unitPriceBs: unitPriceBsRounded,
+                        unitPriceUsdAdjusted: to2(unit.usdAdjusted),
+                        subtotalBs: Math.max(0, Math.round(unitPriceBsRounded * (Number(item.quantity) || 0))),
+                        subtotalUsdAdjusted: to2(sub.usdAdjusted),
+                    };
+                });
 
-                    const cartTotal = cart.reduce((t, i) => t + (i.price * i.quantity), 0);
-                    const totalsCalc = calculateAmounts(cartTotal, appSettings.dolarBCV, appSettings.dolarParalelo);
-                    const totalsBsSum = items.reduce((acc, it) => acc + (Number(it.subtotalBs) || 0), 0);
-                    const activeInventoryName = inventories.find(i => i.id === activeInventoryId)?.name || '';
+                const cartTotal = cart.reduce((t, i) => t + (i.price * i.quantity), 0);
+                const totalsCalc = calculateAmounts(cartTotal, appSettings.dolarBCV, appSettings.dolarParalelo);
+                const totalsBsSum = items.reduce((acc, it) => acc + (Number(it.subtotalBs) || 0), 0);
+                const activeInventoryName = inventories.find(i => i.id === activeInventoryId)?.name || '';
 
-                    // build inventory updates object
-                    const updates = {};
-                    for (const item of cart) updates[`products.${item.docId}.quantity`] = increment(-item.quantity);
+                // build inventory updates object
+                const updates = {};
+                for (const item of cart) updates[`products.${item.docId}.quantity`] = increment(-item.quantity);
 
-                    // run transaction: check sale doc existence first to avoid duplicate application
-                    await runTransaction(db, async (tx) => {
-                        const existing = await tx.get(saleRef);
-                        if (existing.exists()) {
-                            // already processed, nothing to do
-                            return;
-                        }
-
-                        // If user is signed in and there's a cedula, read the customer doc now (reads must come before writes)
-                        const cedRaw = (activeCustomer && (activeCustomer.id || activeCustomer.cedula)) || '';
-                        const cedId = normalizeCedula(cedRaw) || null;
-                        let existingCust = null;
-                        let custRef = null;
-                        if (user?.uid && cedId) {
-                            try {
-                                custRef = doc(db, 'customers', cedId);
-                                existingCust = await tx.get(custRef);
-                            } catch (e) {
-                                // If we cannot read customer (permissions), proceed without blocking the sale
-                                existingCust = null;
-                            }
-                        }
-
-                        // apply inventory updates (writes start after all reads)
-                        tx.update(inventoryDocRef, updates);
-
-                        // write or merge customer if we have a custRef and tx read succeeded or we are signed in
-                        try {
-                            if (custRef && user?.uid) {
-                                const normalizedName = titleCaseName(activeCustomer.name || '');
-                                const normalizedCed = normalizeCedula(activeCustomer.id || cedId || '');
-                                const custPayload = {
-                                    name: normalizedName,
-                                    phone: activeCustomer.phone || '',
-                                    address: activeCustomer.address || '',
-                                    cedula: normalizedCed || cedId,
-                                    name_lower: (normalizedName || '').toLowerCase()
-                                    // intentionally omit notes and any paymentMethod
-                                };
-                                if (existingCust && existingCust.exists()) {
-                                    const old = existingCust.data() || {};
-                                    const merged = { ...old };
-                                    for (const k of ['name', 'phone', 'address']) {
-                                        if (custPayload[k]) merged[k] = custPayload[k];
-                                    }
-                                    merged.cedula = normalizedCed || cedId;
-                                    merged.name_lower = (merged.name || '').toLowerCase();
-                                    tx.set(custRef, merged, { merge: true });
-                                } else {
-                                    tx.set(custRef, custPayload, { merge: true });
-                                }
-                            }
-                        } catch (custErr) {
-                            // do not block sale if customer save fails; just warn (avoid noisy logs)
-                            console.debug('Could not save customer in transaction:', custErr?.message || custErr);
-                        }
-
-                        tx.set(saleRef, {
-                            id: saleId,
-                            soldAt: serverTimestamp(),
-                            soldAtISO: new Date().toISOString(),
-                            userId: user?.uid || null,
-                            inventoryId: activeInventoryId,
-                            inventoryName: activeInventoryName,
-                            customer: {
-                                name: (activeCustomer && activeCustomer.name) || '',
-                                phone: (activeCustomer && activeCustomer.phone) || '',
-                                id: (activeCustomer && activeCustomer.id) || '',
-                                address: (activeCustomer && activeCustomer.address) || ''
-                            },
-                            notes: (activeCustomer && activeCustomer.notes) || '',
-                            paymentMethod: activePaymentMethod,
-                            items,
-                            totals: {
-                                bs: Math.max(0, Math.round(totalsBsSum)),
-                                usdAdjusted: to2(totalsCalc.usdAdjusted),
-                                usdInt: Math.max(0, Math.floor(totalsCalc.usdInt)),
-                                bsDecimals: Math.max(0, Math.round(totalsCalc.bsDecimals)),
-                            },
-                            ratesUsed: { bcv: to2(appSettings.dolarBCV), paralelo: to2(appSettings.dolarParalelo) },
-                            summary: { itemCount: cart.reduce((n, i) => n + i.quantity, 0), productLines: cart.length }
-                        });
-                    });
-
-                    // reconcile other tabs after inventory update (same logic)
-                    try {
-                        const currentStockMap = {};
-                        for (const [pid, pdata] of Object.entries(activeInv.products || {})) {
-                            currentStockMap[pid] = Number(pdata?.quantity) || 0;
-                        }
-                        const soldMap = cart.reduce((m, it) => { m[it.docId] = (m[it.docId] || 0) + Number(it.quantity || 0); return m; }, {});
-                        const stockAfterMap = {};
-                        for (const pid of Object.keys(soldMap)) {
-                            stockAfterMap[pid] = Math.max(0, (currentStockMap[pid] || 0) - soldMap[pid]);
-                        }
-
-                        const adjustedInfo = [];
-                        setTabs(prevTabs => {
-                            const clone = prevTabs.map(t => ({ ...t, cart: (t.cart || []).map(i => ({ ...i })) }));
-                            const otherTabs = clone.filter(t => t.id !== activeTabId).sort((a,b) => Number(a.id) - Number(b.id));
-
-                            for (const pid of Object.keys(stockAfterMap)) {
-                                let remaining = stockAfterMap[pid];
-                                for (const tab of otherTabs) {
-                                    const item = tab.cart.find(i => i.docId === pid);
-                                    if (!item) continue;
-                                    const oldQty = item.quantity || 0;
-                                    const allowed = Math.min(oldQty, remaining);
-                                    if (oldQty !== allowed) {
-                                        adjustedInfo.push(`${item.name || pid}: ${oldQty}→${allowed}`);
-                                        item.quantity = allowed;
-                                    }
-                                    remaining = Math.max(0, remaining - allowed);
-                                }
-                            }
-                            return clone;
-                        });
-
-                        if (adjustedInfo.length) {
-                            const short = adjustedInfo.slice(0, 6).join(', ');
-                            const msg = `Se ajustaron cantidades en otras pestañas: ${short}${adjustedInfo.length > 6 ? '…' : ''}`;
-                            showNotification(msg, 'info', 6000);
-                        }
-                    } catch (reconErr) {
-                        console.warn('Reconcilación de pestañas fallida:', reconErr);
+                // run transaction: check sale doc existence first to avoid duplicate application
+                await runTransaction(db, async (tx) => {
+                    const existing = await tx.get(saleRef);
+                    if (existing.exists()) {
+                        // already processed, nothing to do
+                        return;
                     }
 
-                    // success: clear pending marker
-                    try { localStorage.removeItem(pendingKey); } catch (e) {}
-                };
+                    // If user is signed in and there's a cedula, read the customer doc now (reads must come before writes)
+                    const cedRaw = (activeCustomer && (activeCustomer.id || activeCustomer.cedula)) || '';
+                    const cedId = normalizeCedula(cedRaw) || null;
+                    let existingCust = null;
+                    let custRef = null;
+                    if (user?.uid && cedId) {
+                        try {
+                            custRef = doc(db, 'customers', cedId);
+                            existingCust = await tx.get(custRef);
+                        } catch (e) {
+                            // If we cannot read customer (permissions), proceed without blocking the sale
+                            existingCust = null;
+                        }
+                    }
+
+                    // apply inventory updates (writes start after all reads)
+                    tx.update(inventoryDocRef, updates);
+
+                    // write or merge customer if we have a custRef and tx read succeeded or we are signed in
+                    try {
+                        if (custRef && user?.uid) {
+                            const normalizedName = titleCaseName(activeCustomer.name || '');
+                            const normalizedCed = normalizeCedula(activeCustomer.id || cedId || '');
+                            const custPayload = {
+                                name: normalizedName,
+                                phone: activeCustomer.phone || '',
+                                address: activeCustomer.address || '',
+                                cedula: normalizedCed || cedId,
+                                name_lower: (normalizedName || '').toLowerCase()
+                                // intentionally omit notes and any paymentMethod
+                            };
+                            if (existingCust && existingCust.exists()) {
+                                const old = existingCust.data() || {};
+                                const merged = { ...old };
+                                for (const k of ['name', 'phone', 'address']) {
+                                    if (custPayload[k]) merged[k] = custPayload[k];
+                                }
+                                merged.cedula = normalizedCed || cedId;
+                                merged.name_lower = (merged.name || '').toLowerCase();
+                                tx.set(custRef, merged, { merge: true });
+                            } else {
+                                tx.set(custRef, custPayload, { merge: true });
+                            }
+                        }
+                    } catch (custErr) {
+                        // do not block sale if customer save fails; just warn (avoid noisy logs)
+                        console.debug('Could not save customer in transaction:', custErr?.message || custErr);
+                    }
+
+                    tx.set(saleRef, {
+                        id: saleId,
+                        soldAt: serverTimestamp(),
+                        soldAtISO: new Date().toISOString(),
+                        userId: user?.uid || null,
+                        inventoryId: activeInventoryId,
+                        inventoryName: activeInventoryName,
+                        customer: {
+                            name: (activeCustomer && activeCustomer.name) || '',
+                            phone: (activeCustomer && activeCustomer.phone) || '',
+                            id: (activeCustomer && activeCustomer.id) || '',
+                            address: (activeCustomer && activeCustomer.address) || ''
+                        },
+                        notes: (activeCustomer && activeCustomer.notes) || '',
+                        paymentMethod: activePaymentMethod,
+                        items,
+                        totals: {
+                            bs: Math.max(0, Math.round(totalsBsSum)),
+                            usdAdjusted: to2(totalsCalc.usdAdjusted),
+                            usdInt: Math.max(0, Math.floor(totalsCalc.usdInt)),
+                            bsDecimals: Math.max(0, Math.round(totalsCalc.bsDecimals)),
+                        },
+                        ratesUsed: { bcv: to2(appSettings.dolarBCV), paralelo: to2(appSettings.dolarParalelo) },
+                        summary: { itemCount: cart.reduce((n, i) => n + i.quantity, 0), productLines: cart.length }
+                    });
+                });
+
+                // reconcile other tabs after inventory update (same logic)
+                try {
+                    const currentStockMap = {};
+                    for (const [pid, pdata] of Object.entries(activeInv.products || {})) {
+                        currentStockMap[pid] = Number(pdata?.quantity) || 0;
+                    }
+                    const soldMap = cart.reduce((m, it) => { m[it.docId] = (m[it.docId] || 0) + Number(it.quantity || 0); return m; }, {});
+                    const stockAfterMap = {};
+                    for (const pid of Object.keys(soldMap)) {
+                        stockAfterMap[pid] = Math.max(0, (currentStockMap[pid] || 0) - soldMap[pid]);
+                    }
+
+                    const adjustedInfo = [];
+                    setTabs(prevTabs => {
+                        const clone = prevTabs.map(t => ({ ...t, cart: (t.cart || []).map(i => ({ ...i })) }));
+                        const otherTabs = clone.filter(t => t.id !== activeTabId).sort((a, b) => Number(a.id) - Number(b.id));
+
+                        for (const pid of Object.keys(stockAfterMap)) {
+                            let remaining = stockAfterMap[pid];
+                            for (const tab of otherTabs) {
+                                const item = tab.cart.find(i => i.docId === pid);
+                                if (!item) continue;
+                                const oldQty = item.quantity || 0;
+                                const allowed = Math.min(oldQty, remaining);
+                                if (oldQty !== allowed) {
+                                    adjustedInfo.push(`${item.name || pid}: ${oldQty}→${allowed}`);
+                                    item.quantity = allowed;
+                                }
+                                remaining = Math.max(0, remaining - allowed);
+                            }
+                        }
+                        return clone;
+                    });
+
+                    if (adjustedInfo.length) {
+                        const short = adjustedInfo.slice(0, 6).join(', ');
+                        const msg = `Se ajustaron cantidades en otras pestañas: ${short}${adjustedInfo.length > 6 ? '…' : ''}`;
+                        showNotification(msg, 'info', 6000);
+                    }
+                } catch (reconErr) {
+                    console.warn('Reconcilación de pestañas fallida:', reconErr);
+                }
+
+                // success: clear pending marker
+                try { localStorage.removeItem(pendingKey); } catch (e) { }
+            };
 
             // Execute the remote operation now; if it fails the catch below
             // will start the retry manager using the prepared operationFn.
@@ -1315,7 +1315,7 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                     address: (activeCustomer && activeCustomer.address) || ''
                 };
                 upsertCustomerToLocalCache(custForCache);
-            } catch (e) {}
+            } catch (e) { }
 
             setCurrentTabCart([]);
             setActiveTabCustomer({ ...defaultCustomer });
@@ -1324,7 +1324,7 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
             console.error('Error al procesar la venta:', err);
             // If we prepared a remote operation, use retry manager
             if (typeof operationFn === 'function') {
-                showErrorWithRetry('Error al procesar la venta', operationFn, 30).catch(() => {});
+                showErrorWithRetry('Error al procesar la venta', operationFn, 30).catch(() => { });
             } else {
                 setError(err?.message || 'No se pudo completar la venta.');
                 showNotification(err?.message || 'No se pudo completar la venta.', 'error');
@@ -1541,7 +1541,7 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                                 </button>
                             </div>
 
-                            
+
                         </div>
                         {/* --- FIN DE LA MODIFICACIÓN VISUAL --- */}
                     </header>
@@ -1563,20 +1563,20 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                                     {cart.length === 0 && (
                                         <div className="cart-empty">Añade productos para empezar una venta.</div>
                                     )}
-                                                                        {cart.map(item => {
-                                                                                // compute per-item unit and rounded Bs values
-                                                                                const unitCalc = calculateAmounts(item.price, appSettings.dolarBCV, appSettings.dolarParalelo);
-                                                                                const unit = {
-                                                                                    bs: item.priceBs ?? unitCalc.bs,
-                                                                                    usdAdjusted: item.priceUsdAdjusted ?? unitCalc.usdAdjusted,
-                                                                                    bsDecimals: item.priceBsDecimals ?? unitCalc.bsDecimals
-                                                                                };
-                                                                                // rounded unit Bs used in UI and history: follow existing policy (already rounded in calculateAmounts)
-                                                                                const unitPriceBsRounded = Math.max(0, Math.round(unit.bs));
-                                                                                const subtotalUSD = item.price * item.quantity;
-                                                                                const subtotalBsRounded = Math.max(0, Math.round(unitPriceBsRounded * (Number(item.quantity) || 0)));
-                                                                                const sub = calculateAmounts(subtotalUSD, appSettings.dolarBCV, appSettings.dolarParalelo);
-                                                                                return (
+                                    {cart.map(item => {
+                                        // compute per-item unit and rounded Bs values
+                                        const unitCalc = calculateAmounts(item.price, appSettings.dolarBCV, appSettings.dolarParalelo);
+                                        const unit = {
+                                            bs: item.priceBs ?? unitCalc.bs,
+                                            usdAdjusted: item.priceUsdAdjusted ?? unitCalc.usdAdjusted,
+                                            bsDecimals: item.priceBsDecimals ?? unitCalc.bsDecimals
+                                        };
+                                        // rounded unit Bs used in UI and history: follow existing policy (already rounded in calculateAmounts)
+                                        const unitPriceBsRounded = Math.max(0, Math.round(unit.bs));
+                                        const subtotalUSD = item.price * item.quantity;
+                                        const subtotalBsRounded = Math.max(0, Math.round(unitPriceBsRounded * (Number(item.quantity) || 0)));
+                                        const sub = calculateAmounts(subtotalUSD, appSettings.dolarBCV, appSettings.dolarParalelo);
+                                        return (
                                             <div className="cart-row" key={item.docId}>
                                                 <div className="cart-cell product" data-label="Producto">
                                                     {/* Thumbnail that opens viewer when clicked */}
@@ -1604,11 +1604,11 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                                                                 type="text"
                                                                 inputMode="decimal"
                                                                 pattern="[0-9.,]*"
-                                                                value={ priceEditMap[item.docId] ?? (
+                                                                value={priceEditMap[item.docId] ?? (
                                                                     (item.priceUsdAdjusted !== undefined && item.priceUsdAdjusted !== null)
                                                                         ? String(item.priceUsdAdjusted)
                                                                         : (Number.isFinite(item.price) ? String(calculateAmounts(item.price, appSettings.dolarBCV, appSettings.dolarParalelo).usdAdjusted) : '')
-                                                                ) }
+                                                                )}
                                                                 onChange={(e) => {
                                                                     // permitir edición libre: sólo actualiza el mapa temporal
                                                                     setPriceEditMap(prev => ({ ...prev, [item.docId]: e.target.value }));
@@ -1642,8 +1642,8 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
 
                                                     {/* Equivalencia en bolívares del precio unitario */}
                                                     <small className="price-bs-hint">
-                                                       { formatBs( calculateAmounts(item.price, appSettings.dolarBCV, appSettings.dolarParalelo).bs ) }
-                                                   </small>
+                                                        {formatBs(calculateAmounts(item.price, appSettings.dolarBCV, appSettings.dolarParalelo).bs)}
+                                                    </small>
                                                 </div>
                                                 <div className="cart-cell quantity" data-label="Cant.">
                                                     <div
@@ -1923,61 +1923,61 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                 autoCloseAfterAdd={!prefDoNotAutoCloseAfterAdd}
             />
 
-                    {/* Preferences modal */}
-                    {showPreferences && (
-                        <div className="modal-backdrop" role="dialog" aria-modal="true">
-                            <div className="modal-card">
-                                <h3>Preferencias</h3>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={!!prefUseSmartProductSearch}
-                                            onChange={async (e) => {
-                                                const v = !!e.target.checked;
-                                                setPrefUseSmartProductSearch(v);
-                                                try {
-                                                    if (user?.uid) {
-                                                        await setDoc(doc(db, 'users', user.uid), { prefs: { useSmartProductSearch: v } }, { merge: true });
-                                                    } else {
-                                                        localStorage.setItem('prefs:useSmartProductSearch', v ? '1' : '0');
-                                                    }
-                                                } catch (err) {
-                                                    console.debug('Could not persist pref', err);
-                                                }
-                                            }}
-                                        />
-                                        <span>Búsqueda inteligente (Product Search Modal)</span>
-                                    </label>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                        <input
-                                            type="checkbox"
-                                            // Checkbox now means "Do NOT auto-close after add" (inverted semantic)
-                                            checked={!!prefDoNotAutoCloseAfterAdd}
-                                            onChange={async (e) => {
-                                                const v = !!e.target.checked;
-                                                setPrefDoNotAutoCloseAfterAdd(v);
-                                                try {
-                                                    if (user?.uid) {
-                                                        // Persist only the new clearer key; reads still fallback to old key for compatibility
-                                                        await setDoc(doc(db, 'users', user.uid), { prefs: { noAutoCloseAfterAdd: v } }, { merge: true });
-                                                    } else {
-                                                        localStorage.setItem('prefs:noAutoCloseAfterAdd', v ? '1' : '0');
-                                                    }
-                                                } catch (err) {
-                                                    console.debug('Could not persist pref', err);
-                                                }
-                                            }}
-                                        />
-                                        <span>No cerrar automáticamente tras agregar producto</span>
-                                    </label>
-                                </div>
-                                <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                                    <button className="outline secondary" onClick={() => setShowPreferences(false)}>Cerrar</button>
-                                </div>
-                            </div>
+            {/* Preferences modal */}
+            {showPreferences && (
+                <div className="modal-backdrop" role="dialog" aria-modal="true">
+                    <div className="modal-card">
+                        <h3>Preferencias</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={!!prefUseSmartProductSearch}
+                                    onChange={async (e) => {
+                                        const v = !!e.target.checked;
+                                        setPrefUseSmartProductSearch(v);
+                                        try {
+                                            if (user?.uid) {
+                                                await setDoc(doc(db, 'users', user.uid), { prefs: { useSmartProductSearch: v } }, { merge: true });
+                                            } else {
+                                                localStorage.setItem('prefs:useSmartProductSearch', v ? '1' : '0');
+                                            }
+                                        } catch (err) {
+                                            console.debug('Could not persist pref', err);
+                                        }
+                                    }}
+                                />
+                                <span>Búsqueda inteligente (Product Search Modal)</span>
+                            </label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <input
+                                    type="checkbox"
+                                    // Checkbox now means "Do NOT auto-close after add" (inverted semantic)
+                                    checked={!!prefDoNotAutoCloseAfterAdd}
+                                    onChange={async (e) => {
+                                        const v = !!e.target.checked;
+                                        setPrefDoNotAutoCloseAfterAdd(v);
+                                        try {
+                                            if (user?.uid) {
+                                                // Persist only the new clearer key; reads still fallback to old key for compatibility
+                                                await setDoc(doc(db, 'users', user.uid), { prefs: { noAutoCloseAfterAdd: v } }, { merge: true });
+                                            } else {
+                                                localStorage.setItem('prefs:noAutoCloseAfterAdd', v ? '1' : '0');
+                                            }
+                                        } catch (err) {
+                                            console.debug('Could not persist pref', err);
+                                        }
+                                    }}
+                                />
+                                <span>No cerrar automáticamente tras agregar producto</span>
+                            </label>
                         </div>
-                    )}
+                        <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                            <button className="outline secondary" onClick={() => setShowPreferences(false)}>Cerrar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* Image viewer for Cashier (portal-based) */}
             <ImageViewerModal isOpen={viewerOpen} onClose={() => { setViewerOpen(false); setViewerSrc(null); }} src={viewerSrc} alt="Imagen" />
 

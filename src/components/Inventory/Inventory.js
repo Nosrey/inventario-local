@@ -16,7 +16,7 @@ import _ from 'lodash';
 
 // Eliminamos listeners locales: usamos el contexto global
 function Inventory({ user }) {
-  const { loading, productsMap, inventories, brands } = useData();
+  const { loading, productsMap, inventories, brands, settings } = useData();
   // Utility: list queued archive jobs (stored in localStorage per product)
   const listArchiveJobsFor = (productId) => {
     try { return JSON.parse(localStorage.getItem(`inventory:archiveJobs:${productId}`) || '[]'); } catch (e) { return []; }
@@ -66,7 +66,7 @@ function Inventory({ user }) {
 
   const showNotification = (message, type = 'error', duration = 4000) => {
     setNotification({ message, type });
-    try { window.clearTimeout(showNotification._t); } catch (e) {}
+    try { window.clearTimeout(showNotification._t); } catch (e) { }
     showNotification._t = window.setTimeout(() => setNotification({ message: '', type: '' }), duration);
   };
   const [selectedInventoryId, setSelectedInventoryId] = useState('total');
@@ -93,19 +93,19 @@ function Inventory({ user }) {
     try {
       document?.body?.classList?.add('inventory-bg');
       document?.documentElement?.classList?.add('inventory-bg');
-    } catch (e) {}
+    } catch (e) { }
     return () => {
       try {
         document?.body?.classList?.remove('inventory-bg');
         document?.documentElement?.classList?.remove('inventory-bg');
-      } catch (e) {}
+      } catch (e) { }
     };
   }, []);
 
   const handleSetViewMode = async (mode) => {
     setViewMode(mode);
     if (user?.uid) {
-      try { await setDoc(doc(db, 'users', user.uid), { inventoryView: mode }, { merge: true }); } catch {}
+      try { await setDoc(doc(db, 'users', user.uid), { inventoryView: mode }, { merge: true }); } catch { }
     }
   };
 
@@ -203,7 +203,7 @@ function Inventory({ user }) {
   };
   // Reemplaza COMPLETO handleAddProduct por seteo EXACTO (sin incrementos, sin deltas)
   // NOTE: We accept (productData, progressCb) when called by the modal.
-  const handleAddProduct = async (productData, progressCb = () => {}) => {
+  const handleAddProduct = async (productData, progressCb = () => { }) => {
     setIsUpdating(true);
     try {
       const { docId, name, price, cost, minQuantity, brandId, inventories: targetInvs = [] } = productData;
@@ -222,14 +222,14 @@ function Inventory({ user }) {
         brandId: brandId || null,
       };
 
-  if (docId) {
+      if (docId) {
         // EDITAR PRODUCTO (incluye updatedAt)
         // Use a per-product pending key and transaction to make the edit idempotent
         const pendingKey = user?.uid ? `inventory:pending:product:${docId}:${user.uid}` : `inventory:pending:product:${docId}:anon`;
         let stored = null;
         try { stored = JSON.parse(localStorage.getItem(pendingKey) || 'null'); } catch (e) { stored = null; }
-        const opId = stored?.opId || `inv_edit_${docId}_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-        try { localStorage.setItem(pendingKey, JSON.stringify({ opId, createdAt: Date.now() })); } catch (e) {}
+        const opId = stored?.opId || `inv_edit_${docId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        try { localStorage.setItem(pendingKey, JSON.stringify({ opId, createdAt: Date.now() })); } catch (e) { }
 
         try {
           await runTransaction(db, async (tx) => {
@@ -258,7 +258,7 @@ function Inventory({ user }) {
             });
           });
         } finally {
-          try { localStorage.removeItem(pendingKey); } catch (e) {}
+          try { localStorage.removeItem(pendingKey); } catch (e) { }
         }
 
         // If there are images selected, compress & upload both thumbnail and full versions,
@@ -270,7 +270,7 @@ function Inventory({ user }) {
             const prevThumbs = productToEdit?.thumbnailsWebp || [];
 
             // helper: compress using a Web Worker (with fallback) and upload with resumable tasks
-            const compressAndUpload = async (files, destProductId, progressCb = () => {}) => {
+            const compressAndUpload = async (files, destProductId, progressCb = () => { }) => {
               // prepare variants: full jpeg, thumb jpeg, thumb webp
               const variants = [
                 { name: 'full_jpeg', maxDim: 1080, quality: 0.8, mime: 'image/jpeg' },
@@ -301,9 +301,9 @@ function Inventory({ user }) {
                 workerResults = await new Promise((res) => {
                   worker.addEventListener('message', (ev) => { res(ev.data.results); });
                   // fallback timeout: if worker doesn't respond within 10s, terminate and fallback
-                  setTimeout(() => { try { worker.terminate(); } catch (e) {} ; res(null); }, 10000);
+                  setTimeout(() => { try { worker.terminate(); } catch (e) { }; res(null); }, 10000);
                 });
-                try { worker.terminate(); } catch (e) {}
+                try { worker.terminate(); } catch (e) { }
               }
 
               // If worker failed, fallback to main-thread canvas-based compression
@@ -423,7 +423,7 @@ function Inventory({ user }) {
                       const cur = JSON.parse(localStorage.getItem(key) || '[]');
                       cur.push({ url: j.url, createdAt: Date.now() });
                       localStorage.setItem(key, JSON.stringify(cur));
-                    } catch (er) {}
+                    } catch (er) { }
                   }
                 }
               } catch (e) {
@@ -437,7 +437,7 @@ function Inventory({ user }) {
       } else {
         // CREAR PRODUCTO (nueva lógica con contador)
         const statsRef = doc(db, 'stats', 'productCounter');
-        
+
         // 1. Transacción para obtener y actualizar el contador atómicamente
         const newProductId = await runTransaction(db, async (transaction) => {
           const statsDoc = await transaction.get(statsRef);
@@ -446,10 +446,10 @@ function Inventory({ user }) {
           }
           const currentNumber = Number(statsDoc.data().productNumber) || 0;
           const newNumber = currentNumber + 1;
-          
+
           // Actualiza el contador
           transaction.update(statsRef, { productNumber: newNumber });
-          
+
           return newNumber;
         });
 
@@ -474,7 +474,7 @@ function Inventory({ user }) {
             try { await deleteFilesInProductFolder(newProductRef.id); } catch (e) { /* ignore */ }
             // reuse compression+upload helper used in edit path
             const uploaded = await (async () => {
-              const progressNoop = () => {};
+              const progressNoop = () => { };
               // inline compressAndUpload same as above
               const variants = [
                 { name: 'full_jpeg', maxDim: 1080, quality: 0.8, mime: 'image/jpeg' },
@@ -488,8 +488,8 @@ function Inventory({ user }) {
               let workerResults = null;
               if (worker) {
                 worker.postMessage({ files: filesData, variants }, filesData.map(f => f.arrayBuffer));
-                workerResults = await new Promise((res) => { worker.addEventListener('message', (ev) => { res(ev.data.results); }); setTimeout(() => { try { worker.terminate(); } catch (e) {} ; res(null); }, 10000); });
-                try { worker.terminate(); } catch (e) {}
+                workerResults = await new Promise((res) => { worker.addEventListener('message', (ev) => { res(ev.data.results); }); setTimeout(() => { try { worker.terminate(); } catch (e) { }; res(null); }, 10000); });
+                try { worker.terminate(); } catch (e) { }
               }
               if (!workerResults) {
                 const fallbackResults = [];
@@ -499,7 +499,8 @@ function Inventory({ user }) {
                     const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = imgUrl; });
                     const variantsOut = [];
                     for (const v of variants) {
-                      const maxDim = v.maxDim || 1080; const quality = typeof v.quality === 'number' ? v.quality : 0.8; const mime = v.mime || 'image/jpeg'; const scale = Math.min(1, maxDim / Math.max(img.width, img.height)); const w = Math.max(1, Math.round(img.width * scale)); const h = Math.max(1, Math.round(img.height * scale)); const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, w, h); const blob = await new Promise((res2) => canvas.toBlob(res2, mime, quality)); variantsOut.push({ name: v.name, blob, mime }); }
+                      const maxDim = v.maxDim || 1080; const quality = typeof v.quality === 'number' ? v.quality : 0.8; const mime = v.mime || 'image/jpeg'; const scale = Math.min(1, maxDim / Math.max(img.width, img.height)); const w = Math.max(1, Math.round(img.width * scale)); const h = Math.max(1, Math.round(img.height * scale)); const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, w, h); const blob = await new Promise((res2) => canvas.toBlob(res2, mime, quality)); variantsOut.push({ name: v.name, blob, mime });
+                    }
                     URL.revokeObjectURL(imgUrl);
                     fallbackResults.push({ fileName: f.name, variants: variantsOut });
                   } catch (err) { fallbackResults.push({ fileName: f.name, error: String(err) }); }
@@ -520,11 +521,11 @@ function Inventory({ user }) {
             console.error('Error uploading product images:', e);
           }
         }
-  }
+      }
 
-        // Listeners globales actualizarán la UI
-        // success notification
-        try { showNotification('Producto guardado con éxito.', 'success', 5000); } catch (e) {}
+      // Listeners globales actualizarán la UI
+      // success notification
+      try { showNotification('Producto guardado con éxito.', 'success', 5000); } catch (e) { }
     } catch (err) {
       console.error('Error guardando producto:', err);
       showNotification(err?.message || 'No se pudo guardar el producto.', 'error');
@@ -544,8 +545,8 @@ function Inventory({ user }) {
       const pendingKey = user?.uid ? `inventory:pending:product_delete:${productDocId}:${user.uid}` : `inventory:pending:product_delete:${productDocId}:anon`;
       let stored = null;
       try { stored = JSON.parse(localStorage.getItem(pendingKey) || 'null'); } catch (e) { stored = null; }
-      const opId = stored?.opId || `inv_del_${productDocId}_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-      try { localStorage.setItem(pendingKey, JSON.stringify({ opId, createdAt: Date.now() })); } catch (e) {}
+      const opId = stored?.opId || `inv_del_${productDocId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      try { localStorage.setItem(pendingKey, JSON.stringify({ opId, createdAt: Date.now() })); } catch (e) { }
 
       try {
         await runTransaction(db, async (tx) => {
@@ -570,7 +571,7 @@ function Inventory({ user }) {
           });
         });
       } finally {
-        try { localStorage.removeItem(pendingKey); } catch (e) {}
+        try { localStorage.removeItem(pendingKey); } catch (e) { }
       }
     } catch (err) {
       console.error('Error eliminando producto:', err);
@@ -706,7 +707,7 @@ function Inventory({ user }) {
     return (
       <div style={style} className="table-row">
         {/* NEW: wrapper to control internal layout even when react-window sets inline position/height */}
-          <div className="table-row-inner">
+        <div className="table-row-inner">
           <div className="table-cell" style={{ flex: '0 0 50px', justifyContent: 'center' }}>
             <button onClick={(e) => { e.stopPropagation(); handleEditClick(productDocId); }} className="outline secondary row-edit-btn">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
@@ -750,7 +751,7 @@ function Inventory({ user }) {
               <div className="view-switcher" role="tablist" aria-label="Selector de vista">
                 <button
                   /* Temporarily disable list mode because it has known bugs — no-op until fixed */
-                  onClick={() => {/* no-op */}}
+                  onClick={() => {/* no-op */ }}
                   title="Modo lista"
                   className={`outline secondary ${viewMode === 'list' ? 'active' : ''}`}
                   aria-pressed={viewMode === 'list'}
@@ -886,9 +887,9 @@ function Inventory({ user }) {
                                 </div>
                               </div>
 
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: '0.6rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: '0.6rem' }}>
                                 <button onClick={(e) => { e.stopPropagation(); handleEditClick(productDocId); }} className="outline secondary row-edit-btn" aria-label={`Editar ${productInfo?.name || ''}`}>
-                                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
                                 </button>
                               </div>
                             </div>
@@ -916,6 +917,7 @@ function Inventory({ user }) {
         onCreateInventory={handleCreateInventory}
         onCreateBrand={handleCreateBrand}
         productToEdit={productToEdit}
+        appSettings={settings}
       />
       <ImageViewerModal isOpen={viewerOpen} src={viewerSrc} onClose={() => { setViewerOpen(false); setViewerSrc(null); }} />
     </>

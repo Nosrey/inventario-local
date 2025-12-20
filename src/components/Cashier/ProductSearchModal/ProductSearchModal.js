@@ -15,20 +15,20 @@ import { db } from '../../../firebase.js';
 const DEBOUNCE_MS = 120;
 const BUFFER_ROWS = 6; // filas extra arriba/abajo
 
-function ProductSearchModal({ 
-   isOpen,
-   onClose,
-   onAddProduct,
-   allProducts,
-   inventories,
-   activeInventoryId,
-   onInventoryChange,
-   appSettings,
-   user,
-   cart, /* carrito de la pestaña activa */
-   reservedMap = {}, /* mapa de reservas por otras pestañas: { docId: qty } */
-   autoCloseAfterAdd = false,
- }) {
+function ProductSearchModal({
+  isOpen,
+  onClose,
+  onAddProduct,
+  allProducts,
+  inventories,
+  activeInventoryId,
+  onInventoryChange,
+  appSettings,
+  user,
+  cart, /* carrito de la pestaña activa */
+  reservedMap = {}, /* mapa de reservas por otras pestañas: { docId: qty } */
+  autoCloseAfterAdd = false,
+}) {
   const [rawSearch, setRawSearch] = useState('');
   const [search, setSearch] = useState('');
   // Default smart search OFF unless explicitly enabled in stored prefs
@@ -133,8 +133,8 @@ function ProductSearchModal({
       const inCart = Number(cartQtyMap[key]) || 0;
       const reservedInOthers = Number(reservedMap[key]) || 0;
       const remaining = Math.max(0, invStock - inCart - reservedInOthers);
-      return { 
-        ...p, 
+      return {
+        ...p,
         stock: remaining,          // stock restante disponible para añadir
         originalStock: invStock    // stock original del inventario (constante para validaciones en Cashier)
       };
@@ -549,12 +549,12 @@ function ProductSearchModal({
 
             {visibleSlice.map(({ product, index }) => {
               const adjusted = adjustUSD(product.price);
-             const bcvRate = Number(appSettings?.dolarBCV) || 1;
-             const adjustedBsValue = adjusted * bcvRate;
-             // redondear hacia arriba al siguiente múltiplo de 10 para mostrar en Bs
-             const adjustedBsRaw = Math.max(0, Math.round(adjustedBsValue));
-             const adjustedBsRounded10 = Math.ceil(adjustedBsRaw / 10) * 10;
-             const adjustedBsLabel = `${adjustedBsRounded10.toLocaleString('es-VE')} Bs.`;
+              const bcvRate = Number(appSettings?.dolarBCV) || 1;
+              const adjustedBsValue = adjusted * bcvRate;
+              // redondear hacia arriba al siguiente múltiplo de 10 para mostrar en Bs
+              const adjustedBsRaw = Math.max(0, Math.round(adjustedBsValue));
+              const adjustedBsRounded10 = Math.ceil(adjustedBsRaw / 10) * 10;
+              const adjustedBsLabel = `${adjustedBsRounded10.toLocaleString('es-VE')} Bs.`;
               const focused = index === focusIndex;
               return (
                 <ProductRow
@@ -615,7 +615,7 @@ const ProductRow = React.memo(function ProductRow({
       onKeyDown={handleKey}
     >
       <div className="lps-thumb">
-        { (product.thumbnailWebp || product.thumbnail || product.image) ? (
+        {(product.thumbnailWebp || product.thumbnail || product.image) ? (
           <img
             src={product.thumbnailWebp || product.thumbnail || product.image}
             alt={product.name}

@@ -21,6 +21,15 @@
   --nmapm-font-size: 14px; /* base font size for modal controls */
 }
 
+.price-input {
+  margin-bottom: 0px !important;
+}
+
+.nmapm-adjusted-price {
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+}
+
 /* Dark theme overrides: follow system preference or explicit data-theme="dark" */
 @media (prefers-color-scheme: dark) {
   :root {

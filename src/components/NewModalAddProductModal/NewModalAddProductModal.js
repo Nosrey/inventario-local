@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import './NewModalAddProductModal.css';
 import ImageViewerModal from '../ImageViewerModal/ImageViewerModal';
 
@@ -12,7 +12,8 @@ function NewModalAddProductModal({
   loading = false,
   onCreateInventory,
   onCreateBrand,
-  productToEdit = null
+  productToEdit = null,
+  appSettings = {}
 }) {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
@@ -32,7 +33,7 @@ function NewModalAddProductModal({
 
   const showNotification = (message, type = 'error', duration = 4000) => {
     setNotification({ message, type });
-    try { window.clearTimeout(showNotification._t); } catch (e) {}
+    try { window.clearTimeout(showNotification._t); } catch (e) { }
     showNotification._t = window.setTimeout(() => setNotification({ message: '', type: '' }), duration);
   };
 
@@ -41,7 +42,7 @@ function NewModalAddProductModal({
       if (fileRef.current) {
         fileRef.current.value = '';
       }
-    } catch (e) {}
+    } catch (e) { }
     setImagePreviews(prev => {
       prev.forEach(p => p.url && URL.revokeObjectURL(p.url));
       return [];
@@ -55,35 +56,35 @@ function NewModalAddProductModal({
     if (!isOpen) return;
 
     if (productToEdit && !initializedRef.current) {
-    // Inicializa solo una vez para edición, con datos de productToEdit
-    setName(productToEdit.name || '');
-    setPrice(productToEdit.price || '');
-    setCost(productToEdit.cost || '');
-    setMinQuantity(productToEdit.minQuantity || '');
-    setBrandId(productToEdit.brandId || '');
-    setInventoryQuantities(
-      Array.isArray(productToEdit.inventories)
-        ? productToEdit.inventories.map(i => ({ inventoryId: i.inventoryId, quantity: i.quantity }))
-        : []
-    );
-    // Manejo de previews (igual que antes)
-    const previews = [];
-    try {
-      const fullImage = productToEdit.image || null;
-      if (productToEdit.thumbnails && Array.isArray(productToEdit.thumbnails) && productToEdit.thumbnails.length) {
-        for (const t of productToEdit.thumbnails) previews.push({ name: 'existing-thumb', url: t, viewerUrl: fullImage || t, size: 0, existing: true });
-      } else if (productToEdit.thumbnail) {
-        previews.push({ name: 'existing-thumb', url: productToEdit.thumbnail, viewerUrl: fullImage || productToEdit.thumbnail, size: 0, existing: true });
-      } else if (productToEdit.image) {
-        previews.push({ name: 'existing-image', url: productToEdit.image, viewerUrl: productToEdit.image, size: 0, existing: true });
-      }
-    } catch (e) { /* ignore */ }
-    setImagePreviews(previews);
-    if (fileRef.current) fileRef.current.value = '';
+      // Inicializa solo una vez para edición, con datos de productToEdit
+      setName(productToEdit.name || '');
+      setPrice(productToEdit.price || '');
+      setCost(productToEdit.cost || '');
+      setMinQuantity(productToEdit.minQuantity || '');
+      setBrandId(productToEdit.brandId || '');
+      setInventoryQuantities(
+        Array.isArray(productToEdit.inventories)
+          ? productToEdit.inventories.map(i => ({ inventoryId: i.inventoryId, quantity: i.quantity }))
+          : []
+      );
+      // Manejo de previews (igual que antes)
+      const previews = [];
+      try {
+        const fullImage = productToEdit.image || null;
+        if (productToEdit.thumbnails && Array.isArray(productToEdit.thumbnails) && productToEdit.thumbnails.length) {
+          for (const t of productToEdit.thumbnails) previews.push({ name: 'existing-thumb', url: t, viewerUrl: fullImage || t, size: 0, existing: true });
+        } else if (productToEdit.thumbnail) {
+          previews.push({ name: 'existing-thumb', url: productToEdit.thumbnail, viewerUrl: fullImage || productToEdit.thumbnail, size: 0, existing: true });
+        } else if (productToEdit.image) {
+          previews.push({ name: 'existing-image', url: productToEdit.image, viewerUrl: productToEdit.image, size: 0, existing: true });
+        }
+      } catch (e) { /* ignore */ }
+      setImagePreviews(previews);
+      if (fileRef.current) fileRef.current.value = '';
       initializedRef.current = true; // Marca como inicializado
     } else if (!productToEdit) {
       setName('');
-      setPrice(''); 
+      setPrice('');
       setCost('');
       setMinQuantity('');
       setBrandId('');
@@ -108,9 +109,31 @@ function NewModalAddProductModal({
     return () => clearTimeout(t);
   }, [isOpen]);
 
+  const adjustUSD = useCallback((originalPriceUSD) => {
+    const { dolarBCV, dolarParalelo } = appSettings || {};
+    const price = Number(originalPriceUSD);
+    const bcv = Number(dolarBCV);
+    const paralelo = Number(dolarParalelo);
+    if (!(price > 0) || !(bcv > 0) || !(paralelo > 0))  return 0;
+    const bs = price * paralelo;
+    return +(bs / bcv);
+  }, [appSettings]);
+
+  const adjustedPrices = useMemo(() => {
+    if (!price) return null;
+    const adjustedUSD = adjustUSD(Number(price)).toFixed(2);
+    const adjustedUSDLabel = `${adjustedUSD.toLocaleString('es-VE')} $`;
+    const bcvRate = Number(appSettings?.dolarBCV) || 1;
+    const adjustedBsValue = adjustedUSD * bcvRate;
+    const adjustedBsRaw = Math.max(0, adjustedBsValue || 0);
+    const adjustedBsRounded10 = Math.ceil(adjustedBsRaw / 10) * 10;
+    const adjustedBsLabel = `${adjustedBsRounded10.toLocaleString('es-VE')} Bs.`;
+    return { adjustedUSDLabel, adjustedBsLabel };
+  })
+
   const handleFiles = (e) => {
     const files = Array.from(e.target.files || []);
-  const previews = files.map(f => ({ name: f.name, url: URL.createObjectURL(f), viewerUrl: URL.createObjectURL(f), size: f.size }));
+    const previews = files.map(f => ({ name: f.name, url: URL.createObjectURL(f), viewerUrl: URL.createObjectURL(f), size: f.size }));
     // revoke previous
     setImagePreviews(prev => {
       prev.forEach(p => p.url && URL.revokeObjectURL(p.url));
@@ -129,7 +152,7 @@ function NewModalAddProductModal({
     setInventoryQuantities(prev => prev.map(i => i.inventoryId === inventoryId ? { ...i, quantity: Number(value) } : i));
   };
 
-  const handleClose =() => {
+  const handleClose = () => {
     initializedRef.current = false;
     onClose && onClose();
   };
@@ -149,12 +172,12 @@ function NewModalAddProductModal({
   const createBrand = async (name) => {
     const normalize = (s) => String(s || '').trim().replace(/\s+/g, ' ');
     const wanted = normalize(name);
-  if (!wanted) { showNotification('El nombre no puede estar vacío', 'error'); return; }
-  if (!onCreateBrand) { showNotification('Función de creación no disponible', 'error'); return; }
+    if (!wanted) { showNotification('El nombre no puede estar vacío', 'error'); return; }
+    if (!onCreateBrand) { showNotification('Función de creación no disponible', 'error'); return; }
     try {
       setIsCreatingBrand(true);
       const created = await onCreateBrand(wanted);
-  if (!created) { showNotification('No se creó la marca.', 'error'); setIsCreatingBrand(false); return; }
+      if (!created) { showNotification('No se creó la marca.', 'error'); setIsCreatingBrand(false); return; }
       let createdId = null;
       if (typeof created === 'string') createdId = created;
       else if (typeof created === 'object') createdId = created.id || null;
@@ -163,14 +186,14 @@ function NewModalAddProductModal({
         const found = brands.find(b => (String(b.name || '').trim()) === wanted);
         if (found) createdId = found.id;
       }
-  if (!createdId) { showNotification('Marca creada, pero no se pudo resolver su id. Revisa la consola.', 'error'); console.error('createBrand: no id', { created, brands }); setIsCreatingBrand(false); return; }
-  setBrandId(createdId);
-  setNewBrandName('');
-  clearFileInputAndPreviews();
-  setIsNewBrandOpen(false);
+      if (!createdId) { showNotification('Marca creada, pero no se pudo resolver su id. Revisa la consola.', 'error'); console.error('createBrand: no id', { created, brands }); setIsCreatingBrand(false); return; }
+      setBrandId(createdId);
+      setNewBrandName('');
+      clearFileInputAndPreviews();
+      setIsNewBrandOpen(false);
     } catch (err) {
-  console.error('createBrand error', err);
-  showNotification('No se pudo crear la marca', 'error');
+      console.error('createBrand error', err);
+      showNotification('No se pudo crear la marca', 'error');
     } finally {
       setIsCreatingBrand(false);
     }
@@ -180,8 +203,8 @@ function NewModalAddProductModal({
   const createInventory = async (name) => {
     const normalize = (s) => String(s || '').trim().replace(/\s+/g, ' ');
     const wanted = normalize(name);
-  if (!wanted) { showNotification('El nombre no puede estar vacío', 'error'); return; }
-  if (!onCreateInventory) { showNotification('Función de creación no disponible', 'error'); return; }
+    if (!wanted) { showNotification('El nombre no puede estar vacío', 'error'); return; }
+    if (!onCreateInventory) { showNotification('Función de creación no disponible', 'error'); return; }
     try {
       setIsCreatingInventory(true);
       const created = await onCreateInventory(wanted);
@@ -267,10 +290,10 @@ function NewModalAddProductModal({
         imageFiles: files
       }, progressCb);
       // show success toast local to the modal (visible above modal)
-      try { showNotification('Producto guardado con éxito.', 'success', 5000); } catch (e) {}
+      try { showNotification('Producto guardado con éxito.', 'success', 5000); } catch (e) { }
     } catch (err) {
       console.error('onAddProduct failed in modal:', err);
-      try { showNotification(err?.message || 'No se pudo guardar el producto.', 'error', 6000); } catch (e) {}
+      try { showNotification(err?.message || 'No se pudo guardar el producto.', 'error', 6000); } catch (e) { }
       // rethrow so parent (Inventory) can run its retry manager if applicable
       throw err;
     } finally {
@@ -293,7 +316,7 @@ function NewModalAddProductModal({
   ) : null;
 
   return (
-    <div className="nmapm-backdrop" role="presentation" onClick={(e) => e.target === e.currentTarget &&  handleClose()}>
+    <div className="nmapm-backdrop" role="presentation" onClick={(e) => e.target === e.currentTarget && handleClose()}>
       {notifEl}
       <div className="nmapm-modal" role="dialog" aria-modal="true" ref={modalRef} onMouseDown={(e) => e.stopPropagation()}>
         <header className="nmapm-header">
@@ -361,33 +384,33 @@ function NewModalAddProductModal({
                 )} */}
                 {/* Image viewer for previews */}
                 <ImageViewerModal isOpen={viewerOpen} onClose={() => setViewerOpen(false)} src={viewerSrc} alt={name || 'Imagen'} />
-            {/* Create Brand Modal (small overlay) */}
-            {isNewBrandOpen && (
-              <div className="nmapm-create-modal" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && setIsNewBrandOpen(false)}>
-                <div className="nmapm-create-card" onMouseDown={(e) => e.stopPropagation()}>
-                    <header style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
-                    <h4 style={{ margin:0 }}>Crear Nueva Marca</h4>
-                    <button type="button" className="nmapm-close" aria-label="Cerrar" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setIsNewBrandOpen(false); }}>×</button>
-                  </header>
-                  <div>
-                    <label style={{ display:'block', marginBottom:8 }}>
-                      Nombre de la Marca
-                      <input
-                        value={newBrandName}
-                        onChange={e => setNewBrandName(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); createBrand(newBrandName); } }}
-                        placeholder="Ej: Marca Nueva"
-                        style={{ display:'block', width:'100%', marginTop:6, padding:'8px 10px', borderRadius:8, border:'1px solid var(--nmapm-input-border)', background:'var(--nmapm-input-bg)', color:'var(--nmapm-text)' }}
-                      />
-                    </label>
-                    <div className="nmapm-create-actions" style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:12 }}>
-                      <button type="button" className="nmapm-btn" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setIsNewBrandOpen(false); }} disabled={isCreatingBrand}>Cancelar</button>
-                      <button type="button" className="nmapm-btn primary" onClick={(e) => { e.stopPropagation(); e.preventDefault(); createBrand(newBrandName); }} disabled={isCreatingBrand}>{isCreatingBrand ? 'Creando...' : 'Crear'}</button>
+                {/* Create Brand Modal (small overlay) */}
+                {isNewBrandOpen && (
+                  <div className="nmapm-create-modal" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && setIsNewBrandOpen(false)}>
+                    <div className="nmapm-create-card" onMouseDown={(e) => e.stopPropagation()}>
+                      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                        <h4 style={{ margin: 0 }}>Crear Nueva Marca</h4>
+                        <button type="button" className="nmapm-close" aria-label="Cerrar" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setIsNewBrandOpen(false); }}>×</button>
+                      </header>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: 8 }}>
+                          Nombre de la Marca
+                          <input
+                            value={newBrandName}
+                            onChange={e => setNewBrandName(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); createBrand(newBrandName); } }}
+                            placeholder="Ej: Marca Nueva"
+                            style={{ display: 'block', width: '100%', marginTop: 6, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--nmapm-input-border)', background: 'var(--nmapm-input-bg)', color: 'var(--nmapm-text)' }}
+                          />
+                        </label>
+                        <div className="nmapm-create-actions" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+                          <button type="button" className="nmapm-btn" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setIsNewBrandOpen(false); }} disabled={isCreatingBrand}>Cancelar</button>
+                          <button type="button" className="nmapm-btn primary" onClick={(e) => { e.stopPropagation(); e.preventDefault(); createBrand(newBrandName); }} disabled={isCreatingBrand}>{isCreatingBrand ? 'Creando...' : 'Crear'}</button>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            )}
+                )}
               </div>
             </label>
 
@@ -395,7 +418,13 @@ function NewModalAddProductModal({
               <span className="nmapm-label">Costo</span>
               <input type="number" step="0.01" value={cost} onChange={e => setCost(e.target.value)} />
               <span className="nmapm-label">Precio</span>
-              <input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} />
+              <input className='price-input' type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} />
+              {/* aca ponemos el calculo del precio ajustado */}
+              {(adjustedPrices && price > 0)  && (
+                <div className="nmapm-adjusted-price">
+                 <i>Precio ajustado: <strong>{adjustedPrices.adjustedUSDLabel} / {adjustedPrices.adjustedBsLabel}</strong></i>
+                </div>
+              )}
             </label>
           </div>
 
@@ -467,33 +496,33 @@ function NewModalAddProductModal({
             </div>
           )}
 
-            {/* Create Inventory Modal (small overlay) */}
-            {isNewInventoryOpen && (
-              <div className="nmapm-create-modal" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && setIsNewInventoryOpen(false)}>
-                <div className="nmapm-create-card" onMouseDown={(e) => e.stopPropagation()}>
-                  <header style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
-                    <h4 style={{ margin:0 }}>Crear Nuevo Inventario</h4>
-                    <button type="button" className="nmapm-close" aria-label="Cerrar" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setIsNewInventoryOpen(false); }}>×</button>
-                  </header>
-                  <div>
-                    <label style={{ display:'block', marginBottom:8 }}>
-                      Nombre del Inventario
-                      <input
-                        value={newInventoryName}
-                        onChange={e => setNewInventoryName(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); createInventory(newInventoryName); } }}
-                        placeholder="Ej: Bodega Principal"
-                        style={{ display:'block', width:'100%', marginTop:6, padding:'8px 10px', borderRadius:8, border:'1px solid var(--nmapm-input-border)', background:'var(--nmapm-input-bg)', color:'var(--nmapm-text)' }}
-                      />
-                    </label>
-                    <div className="nmapm-create-actions" style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:12 }}>
-                      <button type="button" className="nmapm-btn" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setIsNewInventoryOpen(false); }} disabled={isCreatingInventory}>Cancelar</button>
-                      <button type="button" className="nmapm-btn primary" onClick={(e) => { e.stopPropagation(); e.preventDefault(); createInventory(newInventoryName); }} disabled={isCreatingInventory}>{isCreatingInventory ? 'Creando...' : 'Crear'}</button>
-                    </div>
+          {/* Create Inventory Modal (small overlay) */}
+          {isNewInventoryOpen && (
+            <div className="nmapm-create-modal" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && setIsNewInventoryOpen(false)}>
+              <div className="nmapm-create-card" onMouseDown={(e) => e.stopPropagation()}>
+                <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <h4 style={{ margin: 0 }}>Crear Nuevo Inventario</h4>
+                  <button type="button" className="nmapm-close" aria-label="Cerrar" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setIsNewInventoryOpen(false); }}>×</button>
+                </header>
+                <div>
+                  <label style={{ display: 'block', marginBottom: 8 }}>
+                    Nombre del Inventario
+                    <input
+                      value={newInventoryName}
+                      onChange={e => setNewInventoryName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); createInventory(newInventoryName); } }}
+                      placeholder="Ej: Bodega Principal"
+                      style={{ display: 'block', width: '100%', marginTop: 6, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--nmapm-input-border)', background: 'var(--nmapm-input-bg)', color: 'var(--nmapm-text)' }}
+                    />
+                  </label>
+                  <div className="nmapm-create-actions" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+                    <button type="button" className="nmapm-btn" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setIsNewInventoryOpen(false); }} disabled={isCreatingInventory}>Cancelar</button>
+                    <button type="button" className="nmapm-btn primary" onClick={(e) => { e.stopPropagation(); e.preventDefault(); createInventory(newInventoryName); }} disabled={isCreatingInventory}>{isCreatingInventory ? 'Creando...' : 'Crear'}</button>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
+          )}
         </form>
       </div>
     </div>
