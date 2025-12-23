@@ -365,3 +365,37 @@
 /* Small styles for cart thumbnail added by viewer wiring */
 .cart-thumb-btn{border:0;background:transparent;padding:0;margin-right:10px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;overflow:hidden}
 .cart-thumb{width:48px;height:48px;object-fit:cover;border-radius:6px;display:block}
+
+/* ============ INPUT STYLES ============ */
+.input-container{
+  flex:1;
+  display:flex;
+  align-items:center;
+  position: relative;
+}
+.customers-panel-header {
+  margin-bottom: 1rem;
+
+}
+.input-container input{
+  flex:1;
+
+  background:transparent;
+  color:var(--c-text);
+  font-size:0.9rem;
+  outline:none;
+  width: 100%;
+  margin-bottom: 0;
+  padding-right: 25%;
+}
+.input-container input::placeholder{
+  color:var(--c-text-dim);
+}
+
+.input-container svg{
+  width:1.2rem;
+  height:1.2rem;
+  fill:var(--c-text-dim);
+  flex-shrink:0;
+}
+

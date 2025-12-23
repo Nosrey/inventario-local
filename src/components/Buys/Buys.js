@@ -865,7 +865,7 @@ function Buys({ user, initialActiveInventoryId }) {
 
               <div className="inventory-selector-wrapper">
                 <label htmlFor="buys-inventory-select">Inventario:</label>
-                <select id="buys-inventory-select" value={activeInventoryId || ''} onChange={(e) => handleInventoryChange(e.target.value)} disabled={loading}>
+                <select className='app-inventory-selector' id="buys-inventory-select" value={activeInventoryId || ''} onChange={(e) => handleInventoryChange(e.target.value)} disabled={loading}>
                   {inventories.length === 0 && <option>Cargando...</option>}
                   {inventories.map(inv => (<option key={inv.id} value={inv.id}>{inv.name}</option>))}
                 </select>

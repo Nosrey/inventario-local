@@ -197,6 +197,10 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
         }).join(' ');
     };
 
+    const handleClear = () => {
+        setCustomersFilter('');
+    };  
+
     // sanitize customer data we keep locally / show in panel
     const sanitizeCustomer = (id, data) => {
         const src = data || {};
@@ -1516,9 +1520,10 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
 
                             <div className="right-controls">
                                 <div className="inventory-selector-wrapper">
-                                    <label htmlFor="main-inventory-select">Inventario Activo:</label>
+                                    <label htmlFor="main-inventory-select">Inventario:</label>
                                     <select
                                         id="main-inventory-select"
+                                        className='app-inventory-selector'
                                         value={activeInventoryId || ''}
                                         onChange={(e) => handleInventoryChange(e.target.value)}
                                         disabled={loading}
@@ -1833,13 +1838,42 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                                 <div className="customers-panel-inner">
                                     <div className="customers-panel-header">
                                         <h4>Clientes</h4>
-                                        <input
-                                            type="search"
-                                            placeholder="Filtrar por nombre..."
-                                            value={customersFilter}
-                                            onChange={(e) => { setCustomersFilter(e.target.value); setFilterSource('panel'); }}
-                                            aria-label="Filtrar clientes por nombre"
-                                        />
+
+                                        <div className='input-container'>
+                                            <input
+                                                type="search"
+                                                placeholder="Filtrar por nombre..."
+                                                value={customersFilter}
+                                                onChange={(e) => { setCustomersFilter(e.target.value); setFilterSource('panel'); }}
+                                                aria-label="Filtrar clientes por nombre"
+                                            />
+                                            {customersFilter && (
+                                            // botón para limpiar el filtro 
+                                            <button
+                                                type="button"
+                                                onClick={handleClear}
+                                                className="btn btn-outline search-clear-btn"
+                                                aria-label="Limpiar búsqueda"
+                                            >
+                                                {/* Ícono SVG simple para la X */}
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    width="20"
+                                                    height="20"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    strokeWidth="2"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                >
+                                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                                </svg>
+                                            </button>
+                                            )}
+                                        </div>
+
                                     </div>
                                     <div
                                         className="customers-list"

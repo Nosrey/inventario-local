@@ -68,6 +68,10 @@ function ProductSearchModalTransfers({
     return +(bs / bcv);
   }, [appSettings]);
 
+  const handleClear = () => {
+    setRawSearch('');
+  }
+
   const searcher = useMemo(() => createSearcher(productsWithStock || [], { keys: ['name', 'id', 'docId'], nameKey: 'name', maxResults: 800, minScore: 8 }), [productsWithStock]);
 
   const filtered = useMemo(() => {
@@ -122,8 +126,12 @@ function ProductSearchModalTransfers({
 
   const openQtyDialog = useCallback((p, destStock = 0) => { setQtyDialog({ product: p, quantity: 1, max: Number.isFinite(p.stock) ? p.stock : undefined, destStock: Number(destStock || 0) }); setQtyInputValue(''); }, [showModalNotice]);
   const closeQtyDialog = useCallback(() => { setQtyDialog(null); setQtyInputValue(''); requestAnimationFrame(() => inputRef.current?.focus()); }, []);
-  const changeQuantity = useCallback((delta) => { setQtyDialog(d => { if (!d) return d; let base = Number(d.quantity || 0); let q = base + delta; if (q < 1) q = 1; // enforce max when provided
-    if (Number.isFinite(d.max) && q > d.max) q = d.max; setQtyInputValue(String(q)); return { ...d, quantity: q }; }); }, []);
+  const changeQuantity = useCallback((delta) => {
+    setQtyDialog(d => {
+      if (!d) return d; let base = Number(d.quantity || 0); let q = base + delta; if (q < 1) q = 1; // enforce max when provided
+      if (Number.isFinite(d.max) && q > d.max) q = d.max; setQtyInputValue(String(q)); return { ...d, quantity: q };
+    });
+  }, []);
   const setQuantityFromInput = useCallback((raw) => { const cleaned = raw.replace(/[^\d]/g, ''); setQtyInputValue(cleaned); setQtyDialog(d => { if (!d) return d; if (cleaned === '') return { ...d, quantity: 1 }; let q = parseInt(cleaned, 10); if (isNaN(q)) q = 1; if (q < 1) q = 1; if (Number.isFinite(d.max) && q > d.max) q = d.max; return { ...d, quantity: q }; }); }, []);
   useEffect(() => { if (qtyDialog) { const t = setTimeout(() => { qtyInputRef.current?.focus(); }, 40); return () => clearTimeout(t); } }, [qtyDialog]);
 
@@ -141,7 +149,7 @@ function ProductSearchModalTransfers({
 
   return (
     <div ref={backdropRef} className="lps-backdrop" role="dialog" aria-modal="true" aria-label="Buscar y añadir producto (Transferencias)" onMouseDown={handleBackdrop}>
-  <div className="lps-modal lps-modal-buys">
+      <div className="lps-modal lps-modal-buys">
         {modalNotice && (
           <div
             className={`app-toast ${modalNotice.type}`}
@@ -203,7 +211,34 @@ function ProductSearchModalTransfers({
           </div>
           <div className="lps-field grow">
             <label htmlFor="search" className="lps-label">Buscar</label>
-            <input id="search" ref={inputRef} className="lps-input" type="search" placeholder="Nombre o ID..." value={rawSearch} onChange={(e) => { setRawSearch(e.target.value); setFocusIndex(-1); }} autoComplete="off" />
+            <div className="input-container">
+              <input id="search" ref={inputRef} className="lps-input" type="search" placeholder="Nombre o ID..." value={rawSearch} onChange={(e) => { setRawSearch(e.target.value); setFocusIndex(-1); }} autoComplete="off" />
+              {rawSearch && (
+                // botón para limpiar el input
+                <button
+                  type="button"
+                  onClick={handleClear}
+                  className="btn btn-outline search-clear-btn"
+                  aria-label="Limpiar búsqueda"
+                >
+                  {/* Ícono SVG simple para la X */}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -213,7 +248,7 @@ function ProductSearchModalTransfers({
 
           <div ref={listRef} className="lps-list lps-virt-scroll" role="listbox" aria-label="Resultados de productos">
             {startOffset > 0 && (<div style={{ height: startOffset }} aria-hidden="true" />)}
-              {visibleSlice.map(({ product, index }) => {
+            {visibleSlice.map(({ product, index }) => {
               // for transfers show cost if present else price
               const baseVal = Number(product.cost ?? product.price ?? 0);
               const adjusted = adjustUSD(baseVal);

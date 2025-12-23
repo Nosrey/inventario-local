@@ -111,7 +111,7 @@ function Navbar({ title, rightContent, onLogout, user }) {
         </li>
 
         <li>
-          <button className="contrast outline" onClick={onLogout}>Cerrar sesión</button>
+          <button className="contrast outline normalized-button" onClick={onLogout}>Cerrar sesión</button>
         </li>
       </ul>
 

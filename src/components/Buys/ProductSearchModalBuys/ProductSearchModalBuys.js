@@ -96,6 +96,10 @@ function ProductSearchModalBuys({
   const startOffset = startIndex * rowHeight;
   const endOffset = (total - endIndex) * rowHeight;
 
+  const handleClear = () => {
+    setRawSearch('');
+  }
+
   const showModalNotice = useCallback((message, type = 'error', ms = 2600) => { setModalNotice({ message, type }); if (showModalNotice._t) clearTimeout(showModalNotice._t); showModalNotice._t = setTimeout(() => setModalNotice(null), ms); }, []);
 
   const confirmingRef = useRef(false);
@@ -117,8 +121,12 @@ function ProductSearchModalBuys({
 
   const openQtyDialog = useCallback((p) => { setQtyDialog({ product: p, quantity: 1, max: Number.isFinite(p.stock) ? p.stock : undefined }); setQtyInputValue(''); }, [showModalNotice]);
   const closeQtyDialog = useCallback(() => { setQtyDialog(null); setQtyInputValue(''); requestAnimationFrame(() => inputRef.current?.focus()); }, []);
-  const changeQuantity = useCallback((delta) => { setQtyDialog(d => { if (!d) return d; let base = d.quantity; let q = base + delta; if (q < 1) q = 1; // don't clamp to max for purchases
-    setQtyInputValue(String(q)); return { ...d, quantity: q }; }); }, []);
+  const changeQuantity = useCallback((delta) => {
+    setQtyDialog(d => {
+      if (!d) return d; let base = d.quantity; let q = base + delta; if (q < 1) q = 1; // don't clamp to max for purchases
+      setQtyInputValue(String(q)); return { ...d, quantity: q };
+    });
+  }, []);
   const setQuantityFromInput = useCallback((raw) => { const cleaned = raw.replace(/[^\d]/g, ''); setQtyInputValue(cleaned); setQtyDialog(d => { if (!d) return d; if (cleaned === '') return { ...d, quantity: 1 }; let q = parseInt(cleaned, 10); if (isNaN(q)) q = 1; if (q < 0) q = 0; return { ...d, quantity: q }; }); }, []);
   useEffect(() => { if (qtyDialog) { const t = setTimeout(() => { qtyInputRef.current?.focus(); }, 40); return () => clearTimeout(t); } }, [qtyDialog]);
 
@@ -129,7 +137,7 @@ function ProductSearchModalBuys({
 
   return (
     <div ref={backdropRef} className="lps-backdrop" role="dialog" aria-modal="true" aria-label="Buscar y añadir producto (Compras)" onMouseDown={handleBackdrop}>
-  <div className="lps-modal lps-modal-buys">
+      <div className="lps-modal lps-modal-buys">
         {modalNotice && (
           <div
             className={`app-toast ${modalNotice.type}`}
@@ -194,7 +202,34 @@ function ProductSearchModalBuys({
           </div>
           <div className="lps-field grow">
             <label htmlFor="search" className="lps-label">Buscar</label>
-            <input id="search" ref={inputRef} className="lps-input" type="search" placeholder="Nombre o ID..." value={rawSearch} onChange={(e) => { setRawSearch(e.target.value); setFocusIndex(-1); }} autoComplete="off" />
+            <div className="input-container">
+              <input id="search" ref={inputRef} className="lps-input" type="search" placeholder="Nombre o ID..." value={rawSearch} onChange={(e) => { setRawSearch(e.target.value); setFocusIndex(-1); }} autoComplete="off" />
+              {rawSearch && (
+                // botón para limpiar el input
+                <button
+                  type="button"
+                  onClick={handleClear}
+                  className="btn btn-outline search-clear-btn"
+                  aria-label="Limpiar búsqueda"
+                >
+                  {/* Ícono SVG simple para la X */}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -228,7 +263,7 @@ function ProductSearchModalBuys({
   );
 }
 
-  const ProductRow = React.memo(function ProductRow({ product, adjusted, focused, adjustedBsLabel, onSelect, index }) {
+const ProductRow = React.memo(function ProductRow({ product, adjusted, focused, adjustedBsLabel, onSelect, index }) {
   const handleKey = (e) => { if ((e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSelect(); } };
   const origPrice = product.price !== undefined ? Number(product.price) : null;
   const baseVal = product.cost !== undefined ? Number(product.cost) : origPrice;
@@ -242,7 +277,7 @@ function ProductSearchModalBuys({
         )
       }</div>
       <div className="lps-main">
-          <div className="lps-line1">
+        <div className="lps-line1">
           <span className="lps-name">{product.name}</span>
           {/* Show raw stored cost/price for Buys (do not display adjusted USD here) */}
           <span className="lps-price">${(baseVal || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>

@@ -6,6 +6,31 @@
     padding: 10px;
 }
 
+/* normalized-button */
+.contrast.outline.normalized-button {
+  display: inline-block !important;
+  padding: 0.5em 1.2em !important;
+  font-size: 1rem !important;
+  line-height: 1.5 !important;
+  background: none !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  border-radius: 0.4em !important;
+  box-sizing: border-box !important;
+  cursor: pointer !important;
+  vertical-align: middle !important;
+}
+
+.contrast.outline.normalized-button[type="button"],
+.contrast.outline.normalized-button[type="submit"],
+.contrast.outline.normalized-button[type="reset"],
+button.contrast.outline.normalized-button {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  background: none !important;
+  outline: none !important;
+}
+
 .hamburger .line {
     width: 25px;
     height: 3px;

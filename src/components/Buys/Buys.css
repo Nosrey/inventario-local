@@ -18,3 +18,9 @@
 	object-fit: cover; /* cover ensures center-crop and square display */
 	display: block;
 }
+
+.app-inventory-selector {
+	text-align: center;
+	width: auto;
+	margin: auto;
+}

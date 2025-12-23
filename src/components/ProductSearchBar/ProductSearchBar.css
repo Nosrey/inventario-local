@@ -7,6 +7,7 @@
 
 .search-input {
     margin-bottom: 0 !important; /* Anula el margen inferior predeterminado de Pico */
+
 }
 
 /* Estilos personalizados para el botón de limpiar: solo posición y tamaño, Pico maneja el resto */
@@ -30,7 +31,7 @@
 }
 
 .search-bar-container input[type="search"] {
-    padding-right: 2.5rem; /* Un poco más que el ancho del botón */
+    padding-right: 25%; /* Un poco más que el ancho del botón */
 }
 
 /* Hover personalizado: oscurece el borde (compatible con Pico) */
