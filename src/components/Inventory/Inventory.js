@@ -222,7 +222,8 @@ function Inventory({ user }) {
         brandId: brandId || null,
       };
 
-      if (docId) {
+      // Use strict null/undefined check to decide edit vs create (avoids falsy pitfalls)
+      if (docId !== undefined && docId !== null) {
         // EDITAR PRODUCTO (incluye updatedAt)
         // Use a per-product pending key and transaction to make the edit idempotent
         const pendingKey = user?.uid ? `inventory:pending:product:${docId}:${user.uid}` : `inventory:pending:product:${docId}:anon`;
@@ -237,14 +238,24 @@ function Inventory({ user }) {
             const existing = await tx.get(histRef);
             if (existing.exists()) return; // already applied
 
+            // Read all inventory docs first (Firestore requires all reads before any writes)
+            const invRefs = (targetInvs || []).map(iq => doc(db, 'inventories', iq.inventoryId));
+            const invSnaps = await Promise.all(invRefs.map(r => tx.get(r)));
+
             const prodRef = doc(db, 'products', docId);
             tx.set(prodRef, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
 
-            // apply inventory assignments
-            for (const iq of targetInvs) {
+            // apply inventory assignments (use the pre-fetched snapshots)
+            for (let i = 0; i < (targetInvs || []).length; i++) {
+              const iq = targetInvs[i];
               const q = toInt(iq.quantity);
-              const invRef = doc(db, 'inventories', iq.inventoryId);
-              tx.set(invRef, { products: { [docId]: { quantity: q } }, updatedAt: serverTimestamp() }, { merge: true });
+              const invRef = invRefs[i];
+              const invSnap = invSnaps[i];
+              if (!invSnap.exists()) {
+                tx.set(invRef, { products: { [docId]: { quantity: q } }, updatedAt: serverTimestamp() });
+              } else {
+                tx.update(invRef, { [`products.${docId}`]: { quantity: q }, updatedAt: serverTimestamp() });
+              }
             }
 
             // write a history entry so future retries are no-ops
@@ -463,7 +474,9 @@ function Inventory({ user }) {
           const q = toInt(iq.quantity);
           if (q > 0) {
             const invRef = doc(db, 'inventories', iq.inventoryId);
-            batch.set(invRef, { products: { [newProductRef.id]: { quantity: q } }, updatedAt: serverTimestamp() }, { merge: true });
+            // Prefer update to avoid overwriting the whole products map.
+            // note: batch.update will fail if the doc does not exist — adapt if inventories may be missing.
+            batch.update(invRef, { [`products.${newProductRef.id}`]: { quantity: q }, updatedAt: serverTimestamp() });
           }
         }
         await batch.commit();
