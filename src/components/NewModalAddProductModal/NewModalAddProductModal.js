@@ -19,6 +19,7 @@ function NewModalAddProductModal({
   const [price, setPrice] = useState('');
   const [cost, setCost] = useState('');
   const [minQuantity, setMinQuantity] = useState('');
+  const [marginPercent, setMarginPercent] = useState(100);
   const [brandId, setBrandId] = useState('');
   const [selectedInventory, setSelectedInventory] = useState('');
   const [inventoryQuantities, setInventoryQuantities] = useState([]);
@@ -50,16 +51,41 @@ function NewModalAddProductModal({
   };
 
   const initializedRef = useRef(false);
+  const lastProductIdRef = useRef(null); // Track which product we last initialized
 
   // Initialize when opening / switching to edit
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      initializedRef.current = false;
+      lastProductIdRef.current = null;
+      return;
+    }
 
-    if (productToEdit && !initializedRef.current) {
+    const currentProductId = productToEdit?.docId || null;
+    const shouldInitialize = productToEdit && (
+      !initializedRef.current ||
+      lastProductIdRef.current !== currentProductId
+    );
+
+    if (shouldInitialize) {
+      lastProductIdRef.current = currentProductId;
+      initializedRef.current = true;
+    }
+
+    if (shouldInitialize) {
       // Inicializa solo una vez para edición, con datos de productToEdit
       setName(productToEdit.name || '');
       setPrice(productToEdit.price || '');
       setCost(productToEdit.cost || '');
+
+      // calcular porcentaje a partir de price y cost si es posible
+      try {
+        const p = Number(productToEdit.price || 0);
+        const c = Number(productToEdit.cost || 0);
+        if (c > 0) setMarginPercent(+(((p / c) - 1) * 100).toFixed(2));
+        else setMarginPercent(100);
+      } catch (e) { setMarginPercent(100); }
+
       setMinQuantity(productToEdit.minQuantity || '');
       setBrandId(productToEdit.brandId || '');
       setInventoryQuantities(
@@ -114,7 +140,7 @@ function NewModalAddProductModal({
     const price = Number(originalPriceUSD);
     const bcv = Number(dolarBCV);
     const paralelo = Number(dolarParalelo);
-    if (!(price > 0) || !(bcv > 0) || !(paralelo > 0))  return 0;
+    if (!(price > 0) || !(bcv > 0) || !(paralelo > 0)) return 0;
     const bs = price * paralelo;
     return +(bs / bcv);
   }, [appSettings]);
@@ -151,6 +177,42 @@ function NewModalAddProductModal({
   const handleQtyChange = (inventoryId, value) => {
     setInventoryQuantities(prev => prev.map(i => i.inventoryId === inventoryId ? { ...i, quantity: Number(value) } : i));
   };
+
+  // Helpers para sincronizar costo / precio / porcentaje
+  const recalcPercentFromPriceCost = (p, c) => {
+    const priceN = Number(p || 0);
+    const constN = Number(c || 0);
+    if (constN > 0) return +(((priceN / constN) - 1) * 100).toFixed(2);
+    return 100;
+  };
+
+  const handleCostChange = (value) => {
+    setCost(value);
+    try {
+      const pct = recalcPercentFromPriceCost(price, value);
+      setMarginPercent(pct);
+    } catch (e) { }
+  }
+
+  const handlePriceChange = (value) => {
+    setPrice(value);
+    try {
+      const pct = recalcPercentFromPriceCost(value, cost);
+      setMarginPercent(pct);
+    } catch (e) { }
+  }
+
+  const handleMarginChange = (value) => {
+    const pct = Number(value || 0);
+    setMarginPercent(pct);
+
+    const costN = Number(cost || 0);
+    if  (!Number.isFinite(costN) || costN <= 0) {
+      return;
+    }
+    const newPrice = +(costN * (1 + pct / 100)).toFixed(2);
+    setPrice(String(newPrice));
+  }
 
   const handleClose = () => {
     initializedRef.current = false;
@@ -416,13 +478,29 @@ function NewModalAddProductModal({
 
             <label className="nmapm-field">
               <span className="nmapm-label">Costo</span>
-              <input type="number" step="0.01" value={cost} onChange={e => setCost(e.target.value)} />
+              <input type="number" step="0.01" value={cost} onChange={e => handleCostChange(e.target.value)} />
+
               <span className="nmapm-label">Precio</span>
-              <input className='price-input' type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} />
+              <input className='price-input' type="number" step="0.01" value={price} onChange={e => handlePriceChange(e.target.value)} />
+
+                <br />
+              <span className="nmapm-label">Porcentaje de ganancia (%)</span>
+              <div className="nmapm-percent-wrapper" title="Porcentaje de ganancia">
+               <input
+                 className="price-input nmapm-input-percent"
+                 type="number"
+                 step="0.01"
+                 value={marginPercent}
+                 onChange={e => handleMarginChange(e.target.value)}
+                 aria-label="Porcentaje de ganancia"
+               />
+               <span className="nmapm-percent-suffix"> %</span>
+             </div>
+
               {/* aca ponemos el calculo del precio ajustado */}
-              {(adjustedPrices && price > 0)  && (
+              {(adjustedPrices && price > 0) && (
                 <div className="nmapm-adjusted-price">
-                 <i>Precio ajustado: <strong>{adjustedPrices.adjustedUSDLabel} / {adjustedPrices.adjustedBsLabel}</strong></i>
+                  <i>Precio ajustado: <strong>{adjustedPrices.adjustedUSDLabel} / {adjustedPrices.adjustedBsLabel}</strong></i>
                 </div>
               )}
             </label>

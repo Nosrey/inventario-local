@@ -445,3 +445,9 @@
 
 /* Accessibility helpers */
 .nmapm-modal:focus { outline:none; }
+
+.nmapm-input-percent {
+  width: 6rem !important;
+  display: inline-block;
+  box-sizing: border-box;
+}
