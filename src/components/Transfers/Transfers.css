@@ -1,0 +1,94 @@
+@import '../Cashier/Cashier.css';
+
+/* Minimal transfers overrides to adapt cashier layout */
+.transfers-card { padding: 12px; }
+/* Give the header more vertical breathing room inside transfers card */
+.transfers-card .cashier-header { padding-top: 8px; padding-bottom: 12px; }
+.transfer-selectors { display:flex; gap:12px; align-items:flex-start; width:100%; margin-bottom:8px; }
+.selector { display:flex; flex-direction:column; gap:6px; min-width:0; align-items:center; }
+.selector .label { font-weight:600; font-size:0.85rem; color:var(--c-text-dim); text-align:center; width:100%; max-width:220px; }
+.selector select { padding:.45rem .6rem; border-radius:var(--c-radius-sm); border:1px solid var(--c-border); background:var(--c-surface-alt); color:var(--c-text); }
+.transfer-note { margin-left:auto; color:var(--c-text-dim); }
+
+.transfers-list { margin-top:6px; }
+.cart-empty { padding:18px; text-align:center; color:var(--c-text-dim); }
+
+/* Ensure last cart row has extra breathing room so footer/button doesn't stick to it */
+.transfers-card .cart-body .cart-row:last-child { margin-bottom: 12px; }
+
+/* Add spacing under the header row so columns don't feel cramped */
+.transfers-card .cart-header-row { margin-bottom: 10px; }
+
+.cart-row { align-items:center; }
+.cart-name { font-weight:600; }
+.cart-cell.price { font-weight:600; color:var(--c-text-dim); }
+.cart-cell.subtotal span { font-weight:700; }
+
+.confirm-btn { min-width:180px; }
+
+/* small responsive tweaks */
+@media (max-width:760px){
+  .transfer-selectors{flex-direction:column;align-items:stretch; padding:12px;}
+  /* center the note text on mobile and remove left margin */
+  .transfer-note{margin-left:0; text-align:center;}
+}
+
+/* Pill style for inventory selects and arrow between them */
+.selector .pill-select { display:inline-flex; gap:10px; align-items:center; padding:0; border-radius:18px; }
+
+/* Simplified pill/button look: flat, single color, subtle shadow */
+.selector .pill-select button{ display:inline-flex; align-items:center; justify-content:center; background:var(--c-surface-alt); border:1px solid var(--c-border-soft); color:var(--c-text); padding:.5rem 1.05rem; border-radius:999px; cursor:pointer; font-weight:700; font-size:1.02rem; line-height:1; min-height:44px; margin:0; }
+.selector .pill-select button:hover{ background:var(--c-surface); }
+.selector .pill-select button:focus{ outline:none; box-shadow: var(--c-focus); }
+.selector .pill-select button.active{ background: var(--c-accent); color:#fff; border-color: transparent; box-shadow: 0 6px 14px rgba(var(--c-accent-rgb)/.12); }
+
+/* Force no bottom margin that could descentrar */
+.selector .pill-select button, .selector .pill-select button *{ margin:0 !important; }
+
+/* place arrow at the bottom (aligned with the bottom of pills) */
+.transfer-arrow{display:flex;align-items:center;justify-content:center;color:var(--c-text-dim);padding:0 6px; align-self:flex-end}
+
+/* circular arrow container: subtle, no shadow to avoid click impression */
+.transfer-arrow{ width:48px; height:48px; border-radius:24px; background:transparent; border:1px solid rgba(255,255,255,0.03); box-shadow: none; }
+.transfer-arrow svg{width:20px;height:20px; display:block; margin:0 auto}
+.transfer-arrow svg path{stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
+
+/* non-interactive: cursor default */
+.transfer-arrow:hover{ cursor: default; }
+
+/* accent color when either side is active (helps visibility) */
+.transfer-arrow.active{ color:var(--c-accent); }
+
+/* Dropdown menu for pills */
+.pill-select{ position:relative; }
+.pill-menu{ position:absolute; top:calc(100% + 8px); left:0; min-width:160px; display:flex; flex-direction:column; gap:4px; padding:4px; border-radius:8px; background:var(--c-surface-alt); border:1px solid var(--c-border-soft); box-shadow:0 6px 16px rgba(0,0,0,0.35); z-index:1200; }
+.pill-menu .menu-item{ background:transparent; border:0; padding:.28rem .6rem; border-radius:4px; text-align:left; color:var(--c-text-dim); cursor:pointer; font-weight:500; display:flex; align-items:center; gap:8px; position:relative; transition: background .12s ease, color .12s ease; font-size:0.92rem; }
+.pill-menu .menu-item:hover{ background: rgba(255,255,255,0.02); color:var(--c-text); }
+/* active: subtle background and slightly stronger weight — no blue accent */
+.pill-menu .menu-item.active{ color:var(--c-text); font-weight:600; background: rgba(255,255,255,0.02); }
+
+/* thin separators between items (like hr, subtle) */
+.pill-menu .menu-item:not(:last-child){ border-bottom: 1px solid rgba(255,255,255,0.03); }
+
+@media (max-width:760px){
+  /* On mobile, show the arrow pointing down (transfer from the top selector to the bottom)
+     and make it larger and more prominent while keeping desktop unchanged. */
+  .transfer-arrow{
+    transform: rotate(90deg); /* rotate the right-pointing icon to point down */
+    margin:12px auto; /* center and add breathing room */
+    width:64px; height:64px; border-radius:32px;
+    background: rgba(var(--c-accent-rgb), 0.06);
+    border: 1px solid rgba(var(--c-accent-rgb), 0.12);
+    color: var(--c-accent);
+    align-self:center;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .transfer-arrow svg{ width:30px; height:30px; }
+  /* Add extra space below the destination selector on mobile only */
+  .selector.to { margin-bottom: 18px; }
+  /* Slightly larger, more touch-friendly labels on mobile */
+  .selector .label { font-size: 0.95rem; }
+}
+
+/* Space specifically under the 'Total items:' line inside Transfers card footer */
+.transfers-card .cart-footer .totals-line { margin-bottom: 0.6rem; }

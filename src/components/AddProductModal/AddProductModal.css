@@ -1,0 +1,242 @@
+/* Clean, responsive modal for AddProductModal
+   - Theme-aware (respects [data-theme] or prefers-color-scheme)
+   - Mobile-first layout, scales for desktop
+   - Uses .apm- prefix to avoid colliding with global styles
+*/
+
+:root {
+  --apm-backdrop-light: rgba(17,24,39,0.45);
+  --apm-backdrop-dark: rgba(0,0,0,0.6);
+  --apm-bg-light: #ffffff;
+  --apm-bg-dark: #0b1220;
+  --apm-text-light: #0b1220;
+  --apm-text-dark: #e6eef8;
+  --apm-border: rgba(15,23,42,0.06);
+  --apm-radius: 12px;
+  --apm-gap: 12px;
+}
+
+/* Prefer user/system dark preference when data-theme isn't present */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --apm-backdrop: var(--apm-backdrop-dark);
+    --apm-bg: var(--apm-bg-dark);
+    --apm-text: var(--apm-text-dark);
+    --apm-border: rgba(255,255,255,0.06);
+  }
+}
+
+/* Explicit data-theme or common dark-class hooks (covers html/body dark toggles) */
+[data-theme="dark"] .apm-backdrop,
+.dark .apm-backdrop,
+html.dark .apm-backdrop,
+body.dark .apm-backdrop {
+  --apm-backdrop: var(--apm-backdrop-dark);
+  --apm-bg: var(--apm-bg-dark);
+  --apm-text: var(--apm-text-dark);
+  --apm-border: rgba(255,255,255,0.06);
+}
+
+.apm-backdrop {
+  position: fixed; inset: 0; z-index: 1400;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--apm-backdrop, rgba(17,24,39,0.45));
+  -webkit-backdrop-filter: blur(6px) saturate(1.03);
+  backdrop-filter: blur(6px) saturate(1.03);
+  padding: 16px;
+}
+
+.apm-modal {
+  width: 100%; max-width: 960px; border-radius: var(--apm-radius);
+  background: var(--apm-bg, var(--apm-bg-light)); color: var(--apm-text, var(--apm-text-light));
+  box-shadow: 0 12px 40px rgba(2,6,23,0.35);
+  overflow: hidden; display:flex; flex-direction:column;
+  max-height: 92vh;
+}
+
+.apm-header { display:flex; align-items:center; justify-content:space-between; gap:var(--apm-gap); padding:16px 20px; border-bottom:1px solid var(--apm-border); }
+.apm-title { margin:0; font-size:1.05rem; font-weight:700; }
+.apm-close { background:transparent; border:0; font-size:1.4rem; line-height:1; cursor:pointer; color:inherit; }
+
+.apm-body { padding:16px 20px; overflow:auto; -webkit-overflow-scrolling:touch; }
+.apm-form { display:grid; gap:12px; grid-template-columns: 1fr; }
+
+@media(min-width:720px) {
+  .apm-form { grid-template-columns: 1fr 1fr; align-items:start; }
+}
+
+/* Utility grid used by markup to group controls side-by-side */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+
+/* Make utilities responsive: stack on small screens */
+@media (max-width: 719px) {
+  .grid { grid-template-columns: 1fr; }
+}
+
+/* Ensure selects and inputs expand to available column width */
+.grid select, .apm-form select, .apm-form input[type="text"], .apm-form input[type="number"] {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Buttons that live inside a grid should keep auto width */
+.grid button { white-space: nowrap; }
+
+/* Support a .full helper used in markup */
+.full { grid-column: 1 / -1; }
+
+/* New apm-grid helpers for structured two-column regions */
+.apm-grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
+.apm-grid-2-1 { grid-template-columns: 1fr 1fr; }
+.apm-grid-inline { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+@media (max-width: 719px) {
+  .apm-grid-2-1, .apm-grid-inline { grid-template-columns: 1fr; }
+}
+
+.inventory-row { display:flex; flex-direction:column; gap:8px; padding:8px 0; }
+.inventory-row-controls { display:flex; gap:8px; align-items:center; }
+.inventory-row-controls input { flex:1; }
+.inventory-row-controls .contrast { margin-left: 6px; }
+
+/* ---- New vertical modal layout rules ---- */
+.apm-form.vertical { display:flex; flex-direction:column; gap:18px; padding:6px 0; }
+.apm-section { background: transparent; padding: 0; }
+.apm-row { display:flex; gap:18px; align-items:flex-start; }
+.apm-row .field { flex:1; min-width:0; }
+.apm-row .field.full { flex: 1 1 100%; }
+
+.field label { display:block; font-weight:600; margin-bottom:8px; color:var(--apm-text); }
+.field input[type="text"], .field input[type="number"], .field select { width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--apm-border); background: rgba(255,255,255,0.02); color:inherit; }
+
+.inline { display:flex; gap:12px; align-items:center; }
+.inline select { flex:1; }
+.inline .btn { white-space:nowrap; }
+
+.file-upload { display:flex; flex-direction:column; gap:8px; }
+.file-upload .upload-btn { padding:10px 12px; border-radius:8px; border:1px dashed var(--apm-border); background:transparent; cursor:pointer; display:inline-block; }
+.upload-hint { font-size:0.85rem; color: color-mix(in srgb, var(--apm-text, #0b1220) 65%, transparent); }
+
+.image-previews { display:flex; gap:8px; margin-top:6px; }
+.image-previews .thumb { width:72px; height:72px; overflow:hidden; border-radius:8px; }
+.image-previews img { width:100%; height:100%; object-fit:cover; display:block; }
+
+/* Defensive: prevent previews from forcing modal wider than viewport */
+.image-previews, .image-previews * { max-width: 100%; box-sizing: border-box; }
+.image-previews { flex-wrap: wrap; }
+.image-previews .thumb { flex: 0 0 auto; }
+
+.inventory-list { display:flex; flex-direction:column; gap:10px; }
+.inventory-item { display:flex; gap:12px; align-items:center; justify-content:space-between; padding:8px 0; border-top:1px dashed rgba(255,255,255,0.02); }
+.inventory-label { font-weight:500; }
+.inventory-controls { display:flex; gap:8px; align-items:center; }
+.inventory-controls input { width:110px; padding:8px; }
+
+.apm-footer { display:flex; gap:8px; padding:12px 20px; border-top:1px solid var(--apm-border); justify-content:flex-end; flex-wrap:wrap; align-items:center; }
+
+/* Responsive: only allow two items in a row max */
+@media (max-width: 860px) {
+  .apm-row { flex-direction:column; }
+  .inline { flex-direction:column; align-items:stretch; }
+}
+
+/* small refinements for dark theme */
+[data-theme="dark"] .apm-modal { box-shadow: 0 8px 30px rgba(1,6,12,0.6); }
+[data-theme="dark"] .apm-header { border-bottom:1px solid rgba(255,255,255,0.03); }
+
+.apm-form label { display:flex; flex-direction:column; gap:8px; font-size:0.9rem; }
+.apm-form input[type="text"], .apm-form input[type="number"], .apm-form select { padding:10px 12px; border-radius:8px; border:1px solid var(--apm-border); background:rgba(255,255,255,0.02); color:inherit; }
+.apm-form input::placeholder, .apm-form textarea::placeholder { color: rgba(11,18,32,0.45); }
+
+/* dark-mode adjustments for inputs/placeholders when variables indicate dark theme */
+[data-theme="dark"] .apm-form input[type="text"],
+.dark .apm-form input[type="text"],
+html.dark .apm-form input[type="text"],
+body.dark .apm-form input[type="text"] {
+  background: rgba(255,255,255,0.02);
+  border-color: rgba(255,255,255,0.06);
+}
+[data-theme="dark"] .apm-form input::placeholder,
+.dark .apm-form input::placeholder,
+html.dark .apm-form input::placeholder,
+body.dark .apm-form input::placeholder { color: rgba(230,238,248,0.36); }
+.apm-form .full { grid-column: 1 / -1; }
+
+.file-upload { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.file-upload input[type="file"] { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.file-upload .upload-btn { padding:10px 14px; border-radius:8px; border:1px dashed var(--apm-border); cursor:pointer; background: transparent; display:inline-flex; align-items:center; gap:8px; }
+.file-upload .upload-btn svg { opacity: 0.85; }
+.upload-hint { font-size:0.85rem; color: color-mix(in srgb, var(--apm-text, #0b1220) 65%, transparent); }
+
+/* Defensive: ensure upload area doesn't cause horizontal overflow */
+.file-upload { max-width: 100%; box-sizing: border-box; overflow-x: hidden; }
+.file-upload .upload-btn { max-width: 100%; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.image-previews { max-width: 100%; box-sizing: border-box; overflow-x: hidden; }
+
+/* Last-resort clamps */
+.apm-backdrop { overflow-x: hidden !important; }
+.apm-modal { max-width: calc(100vw - 24px) !important; width: 100% !important; margin: 0 auto !important; }
+.image-previews .thumb { width: min(72px, 24vw) !important; height: auto !important; }
+.image-previews .thumb img { width: 100% !important; height: auto !important; object-fit: cover !important; }
+
+.image-previews { display:grid; grid-template-columns: repeat(auto-fill, minmax(90px,1fr)); gap:10px; margin-top:6px; }
+.image-previews .thumb img { width:100%; height:90px; object-fit:cover; border-radius:8px; display:block; }
+
+.inventory-qty-list { display:flex; flex-direction:column; gap:10px; }
+.inventory-qty-list > div { display:flex; gap:8px; align-items:center; }
+.inventory-qty-list input[type="number"] { width:120px; }
+
+.apm-subform { display:flex; flex-direction:column; gap:10px; }
+.apm-actions { display:flex; gap:8px; justify-content:flex-end; }
+
+.apm-footer { display:flex; gap:8px; padding:12px 20px; border-top:1px solid var(--apm-border); justify-content:flex-end; flex-wrap:wrap; align-items:center; }
+
+/* When delete button is used with margin-right:auto (inline style), ensure spacing works */
+.apm-footer .btn[style] { margin-right: 0; }
+
+/* HR styling inside modal form */
+.apm-form hr, .apm-body > hr { border: none; border-top: 1px solid var(--apm-border); margin: 12px 0; }
+
+/* Make header visually separated and slightly darker in dark theme */
+.apm-header { background: rgba(0,0,0,0.03); }
+[data-theme="dark"] .apm-header, .dark .apm-header { background: rgba(255,255,255,0.02); }
+
+/* Tighter spacing for labels inside inventory list to match layout */
+.inventory-qty-list label { margin: 0 0 6px 0; display:block; font-size:0.9rem; color: var(--apm-text); }
+
+/* Buttons with class .contrast match project utilities */
+.contrast { background: transparent; border-radius: 8px; padding: 6px 10px; border: 1px solid var(--apm-border); color: inherit; }
+
+.btn { padding:8px 12px; border-radius:8px; border:1px solid var(--apm-border); background:transparent; cursor:pointer; color:inherit; }
+.btn.primary { background:var(--pico-primary); color:var(--pico-primary-inverse); border-color:transparent; }
+.btn.secondary { background:transparent; }
+.btn.danger { background:#dc2626; color:#fff; border-color:#dc2626; }
+
+/* small tweaks for dark theme readability */
+[data-theme="dark"] .upload-hint { color: rgba(255,255,255,0.65); }
+
+/* Ensure modal interior uses readable text color even when outside themes don't set variables */
+.apm-modal, .apm-modal * { color: var(--apm-text, var(--apm-text-light)); }
+
+/* Make sure scrollbars in modal are less intrusive (dark-friendly) */
+.apm-body::-webkit-scrollbar { width: 10px; }
+.apm-body::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 6px; }
+.apm-body { scrollbar-color: rgba(0,0,0,0.15) transparent; }
+
+/* Mobile safety: ensure modal never exceeds viewport width and children use border-box sizing */
+@media (max-width: 720px) {
+  .apm-modal {
+    max-width: calc(100vw - 32px); /* account for backdrop padding */
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0;
+    border-radius: 10px;
+  }
+  .apm-modal, .apm-modal * { box-sizing: border-box; }
+  .apm-backdrop { padding: 12px; }
+}

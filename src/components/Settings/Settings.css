@@ -1,0 +1,37 @@
+.settings-container {
+    width: 100%;
+    max-width: 60rem;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+}
+
+.settings-container article {
+    margin-top: 2rem;
+}
+
+.settings-container .error-message {
+    background-color: var(--pico-color-red-150);
+    color: var(--pico-color-red-900);
+    border-left: 4px solid var(--pico-color-red-500);
+    padding: 1rem 1.5rem;
+}
+
+/* Elimina las reglas .notification y .notification-banner anteriores y usa estas */
+
+.notification-banner {
+    color: #ffffff; /* Texto blanco */
+    padding: 1rem 1.5rem;
+    margin-bottom: 1rem;
+    border-radius: var(--border-radius);
+    text-align: center;
+}
+
+.notification-banner.success {
+    background-color: #2e7d32; /* Verde oscuro sólido */
+    border: 1px solid #1b5e20; /* Borde verde más oscuro */
+}
+
+.notification-banner.error {
+    background-color: #d32f2f; /* Rojo brillante sólido */
+    border: 1px solid #b71c1c; /* Borde rojo oscuro */
+}

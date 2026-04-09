@@ -1,0 +1,175 @@
+/* Variables (usando mismas variables que ProductSearchModal) */
+:root {
+  --photo-prompt-bg: var(--lps-surface, #ffffff);
+  --photo-prompt-text: var(--lps-text, #1d232b);
+  --photo-prompt-text-dim: var(--lps-text-dim, #5d6470);
+  --photo-prompt-border: var(--lps-border, #d3d6db);
+  --photo-prompt-primary: var(--lps-primary, #2563eb);
+  --photo-prompt-secondary-bg: var(--lps-bg, #ffffff);
+  --photo-prompt-backdrop: rgba(0, 0, 0, 0.5);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --photo-prompt-backdrop: rgba(0, 0, 0, 0.7);
+    color-scheme: dark;
+  }
+}
+
+/* Soporte para data-theme oscuro explícito */
+:root[data-theme='dark'],
+[data-theme='dark'] {
+  --photo-prompt-backdrop: rgba(0, 0, 0, 0.7);
+  color-scheme: dark;
+}
+
+.photo-prompt-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--photo-prompt-backdrop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.photo-prompt-modal {
+  background: var(--photo-prompt-bg);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--photo-prompt-border);
+}
+
+.photo-prompt-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.photo-prompt-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--photo-prompt-text);
+}
+
+.photo-prompt-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--photo-prompt-text-dim);
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.photo-prompt-close:hover {
+  color: var(--photo-prompt-text);
+}
+
+.photo-prompt-content {
+  margin-bottom: 24px;
+}
+
+.photo-prompt-content p {
+  margin: 0 0 12px 0;
+  color: var(--photo-prompt-text-dim);
+  line-height: 1.4;
+}
+
+.photo-prompt-content strong {
+  color: var(--photo-prompt-text);
+}
+
+.photo-prompt-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.photo-prompt-btn {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.photo-prompt-btn.primary {
+  background-color: var(--photo-prompt-primary);
+  color: white;
+}
+
+.photo-prompt-btn.primary:hover {
+  filter: brightness(0.9);
+}
+
+.photo-prompt-btn.secondary {
+  background-color: var(--photo-prompt-secondary-bg);
+  color: var(--photo-prompt-text);
+  border: 1px solid var(--photo-prompt-border);
+}
+
+.photo-prompt-btn.secondary:hover {
+  opacity: 0.8;
+}
+
+.photo-prompt-upload {
+  text-align: center;
+}
+
+.upload-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.upload-progress p {
+  margin: 0;
+  color: var(--photo-prompt-text-dim);
+  font-size: 0.9rem;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background-color: var(--photo-prompt-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: var(--photo-prompt-primary);
+  transition: width 0.3s ease;
+}
+
+@media (max-width: 480px) {
+  .photo-prompt-modal {
+    padding: 20px;
+    margin: 20px;
+  }
+  
+  .photo-prompt-actions {
+    flex-direction: column;
+  }
+  
+  .photo-prompt-btn {
+    width: 100%;
+  }
+}

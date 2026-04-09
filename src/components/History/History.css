@@ -1,0 +1,524 @@
+.history-wrapper {
+  padding: 1.5rem 1rem 3rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Sells: 9 columns (incl. Método) */
+.history-table-head.mode-sells,
+.history-row.mode-sells {
+  display: grid;
+  grid-template-columns: 140px 180px 160px 120px 80px 80px 140px 140px 60px;
+  column-gap: .75rem;
+  gap: 0;
+}
+
+/* Buys: 9 columns (Método invisible, but same width for alignment) */
+.history-table-head.mode-buys,
+.history-row.mode-buys {
+  display: grid;
+  grid-template-columns: 140px 180px 160px 120px 80px 80px 140px 140px 60px;
+  column-gap: .75rem;
+  gap: 0;
+}
+
+/* Transfers: custom layout and detail presentation (scoped to transfers only) */
+
+.history-table-head.mode-transfers,
+.history-row.mode-transfers {
+  display: grid;
+  /* Date | Usuario | Inventario (From → To) | Líneas | Ítems | Expand */
+  grid-template-columns: 140px 180px 1fr 80px 80px 60px;
+  column-gap: .75rem;
+  gap: 0;
+}
+
+/* Make the inventory column clearly show From → To and center it */
+.history-row.mode-transfers .h-col.inv { justify-content: center; font-weight: 700; text-align: center; }
+.history-table-head.mode-transfers .h-col.inv { justify-content: center; text-align: center; }
+
+/* Hide Total Bs / Total USD columns for transfers (only visual, grid template removed above) */
+.history-table-head.mode-transfers .h-col.totalbs,
+.history-row.mode-transfers .h-col.totalbs,
+.history-table-head.mode-transfers .h-col.totalusd,
+.history-row.mode-transfers .h-col.totalusd {
+  display: none;
+}
+
+/* Responsive transfers grid: smaller template on medium screens */
+@media (max-width: 1180px) {
+  .history-table-head.mode-transfers,
+  .history-row.mode-transfers {
+    grid-template-columns: 110px 140px 1fr 70px 70px 48px;
+    column-gap: .5rem;
+  }
+}
+
+/* When a transfer row is expanded show a three-column detail layout: left list, center summary, right details */
+.history-row.mode-transfers.open .sale-details {
+  display: grid;
+  grid-template-columns: 1fr 220px 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+/* Center and compact the meta info for transfers */
+.history-row.mode-transfers .sale-meta {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  font-size: .85rem;
+}
+
+/* Transfer detail block spans full width and uses a clearer table style */
+.history-row.mode-transfers .transfer-detail { grid-column: 1 / -1; display: block; }
+.history-row.mode-transfers .items-table { width: 100%; font-size: .85rem; }
+.history-row.mode-transfers .items-table th,
+.history-row.mode-transfers .items-table td { padding: .6rem .8rem; }
+.history-row.mode-transfers .items-table th { font-size: .95rem; background: transparent; border-bottom: 2px solid rgba(255,255,255,0.03); }
+.history-row.mode-transfers .items-table td { border: none; background: transparent; color: var(--pico-color); }
+.history-row.mode-transfers .items-table tbody tr { border-bottom: 1px dashed rgba(255,255,255,0.03); }
+
+/* Heading-like labels inside the transfer detail */
+.history-row.mode-transfers .transfer-detail > div { text-align: center; font-weight: 700; font-size: 1rem; margin-bottom: .4rem; }
+
+/* Make numeric before→after pairs monospace and prevent wrapping */
+.history-row.mode-transfers .items-table td:nth-child(3),
+.history-row.mode-transfers .items-table td:nth-child(4) { font-family: monospace; white-space: nowrap; }
+
+/* Responsive: stack transfer detail columns on small screens */
+@media (max-width: 760px) {
+  .history-row.mode-transfers.open .sale-details { grid-template-columns: 1fr; }
+  .history-row.mode-transfers .items-table th,
+  .history-row.mode-transfers .items-table td { font-size: .9rem; padding: .45rem .5rem; }
+  .history-row.mode-transfers .sale-meta { flex-direction: column; align-items: center; gap: .4rem; }
+}
+
+.history-table-head {
+  font-size: .78rem;
+  font-weight: 600;
+  background: var(--pico-muted-border-color);
+  padding: 0;
+}
+.history-row {
+  align-items: center;
+  font-size: .88rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  margin: .35rem 0;
+  position: relative;
+  text-align: center;
+  line-height: 1.1;
+}
+.history-summary strong {
+  font-size: .95rem;
+}
+/* Improve the summary (Modo / totals) layout: clear separation, spacing, responsive */
+.history-summary {
+  display: flex;
+  gap: .75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.history-summary > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 96px;
+  padding: .35rem .6rem;
+  border-radius: 8px;
+  background: transparent; /* keep subtle to match header */
+}
+.history-summary > div strong {
+  display: block;
+  font-size: 1.02rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--pico-color);
+}
+.history-summary > div span {
+  display: block;
+  margin-top: .15rem;
+  font-size: .78rem;
+  color: var(--pico-muted-color, #8fa3ad);
+}
+/* First item is the mode control - keep it compact and inline */
+.history-summary > div:first-child {
+  min-width: auto;
+  padding: 0;
+  flex-direction: row;
+  align-items: center;
+  gap: .5rem;
+}
+.history-summary > div:first-child label { margin: 0; }
+.history-summary > div:first-child select { margin: 0; }
+
+/* Responsive: stack summary items on small screens */
+@media (max-width: 720px) {
+  .history-summary { flex-direction: column; align-items: stretch; }
+  .history-summary > div { flex-direction: row; justify-content: space-between; padding: .35rem .6rem; }
+  .history-summary > div strong { font-size: .95rem; }
+  .history-summary > div span { margin-top: 0; font-size: .76rem; }
+}
+
+/* MOBILE: hide less-important summary stats to keep UI compact and clean
+   We show only up to 3 prominent stats; the rest are hidden on small screens. */
+@media (max-width: 520px) {
+  .history-summary { gap: 0.35rem; }
+  .history-summary > div { display: none; }
+  /* show first (mode) and the next two stats (e.g., sales and totalBs) */
+  .history-summary > div:nth-child(1),
+  .history-summary > div:nth-child(2),
+  .history-summary > div:nth-child(3) {
+    display: flex;
+    flex-direction: column; /* number above label for compact mobile */
+    justify-content: center;
+    align-items: flex-start;
+    padding: 0.22rem 0.5rem;
+  }
+  .history-summary > div:first-child { padding: 0; flex-direction: row; align-items: center; }
+  /* number styling */
+  .history-summary > div strong { font-size: 1.04rem; display: block; }
+  .history-summary > div span { font-size: 0.72rem; color: var(--pico-muted-color); display: block; margin-top: 0.18rem; }
+  /* ensure the summary-more button is visible and placed last */
+  .summary-more-btn-wrap { display: flex !important; order: 99; width: 100%; justify-content: flex-end; }
+  .summary-more-btn-wrap .outline { padding: .35rem .6rem; }
+}
+
+/* Only show the 'Mostrar info completa' button when in compact mobile mode */
+.summary-more-btn-wrap { display: none; }
+@media (max-width: 520px) {
+  .summary-more-btn-wrap { display: flex; align-items: center; }
+  .summary-more-btn-wrap .outline { padding: .35rem .5rem; font-size: .86rem; }
+  /* when compacting we hide some stats (handled earlier); make the button visually subtle */
+  .summary-more-btn-wrap .outline { background: transparent; border: 1px solid rgba(255,255,255,0.04); color: var(--pico-color); border-radius: 6px; }
+}
+
+/* Make the button border contrast in light mode: use a darker subtle border, overridden in dark mode below */
+.summary-more-btn-wrap .outline {
+  border-color: rgba(0,0,0,0.10) !important;
+  background: transparent !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .summary-more-btn-wrap .outline {
+    border-color: rgba(255,255,255,0.08) !important;
+  }
+}
+.history-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+  margin-bottom: 1rem;
+  background: var(--pico-background);
+  padding: .75rem .9rem;
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: 10px;
+}
+.history-filters .filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  min-width: 140px;
+}
+.history-filters .filter-group.grow {
+  flex: 1;
+  min-width: 220px;
+}
+.history-filters .filter-group.actions {
+  justify-content: flex-end;
+}
+.history-table-wrapper {
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--pico-card-background, var(--pico-background));
+  /* move horizontal padding to wrapper so header and rows align to same edges */
+  padding: 1rem 1.25rem;
+}
+.history-table-head {
+  display: grid;
+  /* shared template to keep header/rows perfectly aligned */
+  grid-template-columns: var(--history-col-template, 140px 180px 160px 120px 80px 80px 140px 140px 60px);
+  column-gap: .75rem; /* horizontal breathing space */
+  gap: 0;
+  /* header uses wrapper padding, no internal padding to ensure alignment */
+  padding: 0;
+  font-size: .78rem;
+  font-weight: 600;
+  background: var(--pico-muted-border-color);
+}
+
+/* Make sure header and rows use consistent box model and internal padding for perfect alignment */
+.history-table-head, .history-row {
+  box-sizing: border-box;
+}
+
+.history-table-head .h-col,
+.history-row .h-col {
+  padding: 0; /* ensure header labels and row cells share same internal padding */
+}
+.history-rows {
+  display: flex;
+  flex-direction: column;
+}
+.history-row {
+  display: grid;
+  grid-template-columns: var(--history-col-template, 140px 180px 160px 120px 80px 80px 140px 140px 60px);
+  column-gap: .75rem; /* match header column-gap for alignment */
+  align-items: center; /* vertically center cell contents */
+  font-size: .88rem;
+  /* rows rely on wrapper padding for left/right alignment */
+  padding: 0;
+  /* make each row look like a separated card on wide screens */
+  border: 1px solid transparent;
+  border-radius: 8px;
+  margin: .35rem 0; /* vertical gap between rows */
+  position: relative;
+}
+.history-row:nth-child(even) {
+  background: rgba(0,0,0,.02);
+}
+.history-row.open {
+  background: rgba(0,0,0,.035);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.04);
+}
+.h-col {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.h-col.id { font-family: monospace; font-size: .7rem; }
+.h-col.method { justify-content: flex-start; }
+.h-col.customer { font-weight: 500; }
+.small-btn {
+  padding: .2rem .45rem;
+  font-size: .7rem;
+  height: 1.6rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Ensure the expand column places its content on the right and vertically centered */
+.h-col.expand {
+  justify-content: flex-end;
+  align-items: center;
+  align-self: center; /* ensure the expand cell content is vertically centered within the grid row */
+}
+
+/* Target the expand button specifically: remove external margins that may push it out of center */
+.h-col.expand .small-btn {
+  margin: 0; /* override any bottom margin from global button rules */
+  vertical-align: middle;
+  align-self: center;
+}
+.pm-badge {
+  display: inline-block;
+  padding: .15rem .5rem;
+  border-radius: 1rem;
+  font-size: .6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  background: var(--pico-muted-border-color);
+  color: var(--pico-color);
+}
+.pm-punto { background: #2563eb20; color: #1e3a8a; }
+.pm-pago_movil { background: #0891b220; color: #0e7490; }
+.pm-divisa { background: #05966920; color: #047857; }
+.pm-efectivo { background: #f59e0b25; color: #b45309; }
+/* Estilos para ventas reembolsadas */
+.history-row.refunded {
+  background: rgba(220,38,38,0.04);
+  color: #881b1b;
+}
+.refunded-badge {
+  margin-left: .5rem;
+  display: inline-block;
+  padding: .15rem .45rem;
+  border-radius: 6px;
+  background: rgba(220,38,38,0.12);
+  color: #7f1d1d;
+  font-weight: 700;
+  font-size: .65rem;
+}
+.refunded-label {
+  padding: .25rem .5rem;
+  background: rgba(220,38,38,0.08);
+  color: #7f1d1d;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: .75rem;
+}
+
+/* Botón de peligro */
+.outline.danger {
+  border-color: rgba(220,38,38,0.6);
+  color: #9b1f1f;
+  background: transparent;
+}
+.outline.danger:disabled {
+  opacity: .6;
+}
+.sale-details {
+  grid-column: 1 / -1;
+  margin-top: .5rem;
+  padding: .75rem .85rem .9rem;
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: 8px;
+  background: var(--pico-background);
+  display: flex;
+  flex-direction: column;
+  gap: .6rem;
+}
+.sale-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .6rem 1.2rem;
+  font-size: .65rem;
+}
+.sale-meta > div {
+  min-width: 140px;
+}
+.sale-meta .notes {
+  flex: 1 1 100%;
+  background: rgba(0,0,0,.04);
+  padding: .4rem .5rem;
+  border-radius: 6px;
+  font-size: .65rem;
+}
+.items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .65rem;
+}
+.items-table th, .items-table td {
+  border: 1px solid var(--pico-muted-border-color);
+  padding: .35rem .4rem;
+  text-align: left;
+}
+.items-table th {
+  background: var(--pico-muted-border-color);
+  font-weight: 600;
+}
+.rates-used {
+  font-size: .6rem;
+  color: var(--pico-muted-color, #666);
+  margin-top: .25rem;
+}
+.history-empty {
+  padding: 1rem;
+  font-size: .8rem;
+  text-align: center;
+  color: var(--pico-muted-color, #666);
+}
+.history-footer-actions {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: center;
+}
+.history-footer-actions .no-more {
+  font-size: .75rem;
+  color: var(--pico-muted-color,#666);
+  padding: .4rem .8rem;
+}
+
+/* Modal styles — scoped to .history-wrapper to avoid interfering con otras reglas */
+.history-wrapper .modal-overlay {
+  position: fixed;
+  top: 0; right: 0; bottom: 0; left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.45);
+  z-index: 1500;
+  padding: 1rem;
+}
+
+.history-wrapper .modal {
+  width: 100%;
+  max-width: 520px;
+  background: var(--pico-background, #fff);
+  color: var(--pico-color, #111);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  outline: none;
+  /* asegurar que no cambie el flujo de otros componentes */
+  display: block;
+}
+
+.history-wrapper .modal h3 {
+  margin: 0 0 .4rem;
+  font-size: 1.05rem;
+}
+
+.history-wrapper .modal-body {
+  margin: 0 0 .8rem;
+  font-size: .95rem;
+  color: var(--pico-muted-color, #444);
+}
+
+.history-wrapper .modal-actions {
+  display: flex;
+  gap: .6rem;
+  justify-content: flex-end;
+}
+
+.history-wrapper .modal-actions .outline {
+  padding: .45rem .7rem;
+  border-radius: 6px;
+}
+
+/* Dark mode support (scoped) */
+@media (prefers-color-scheme: dark) {
+  .history-wrapper .modal {
+    background: #0b1220;
+    color: #e6eef8;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.7);
+  }
+  .history-wrapper .modal-body { color: #c7d6e8; }
+  .history-wrapper .modal-overlay { background: rgba(0,0,0,0.6); }
+}
+
+/* Mobile tweaks (scoped) */
+@media (max-width: 480px) {
+  .history-wrapper .modal { padding: .9rem; max-width: 420px; }
+  .history-wrapper .modal-body { font-size: .92rem; }
+}
+
+/* Responsive adjustments */
+@media (max-width: 1180px) {
+  .history-table-head,
+  .history-row {
+    /* smaller screens share an alternate template */
+    grid-template-columns: var(--history-col-template-sm, 120px 160px 140px 100px 70px 70px 120px 120px 52px);
+    column-gap: .5rem;
+    font-size: .72rem;
+  }
+}
+/* On very large screens give rows even more horizontal breathing room */
+@media (min-width: 1400px) {
+  .history-table-head { padding: 1.2rem 2rem; }
+  .history-row { padding: .9rem 1.6rem; column-gap: 1rem; }
+}
+
+/* Temporary debug outlines to visually inspect header vs row alignment. Remove when resolved. */
+/* removed debug outlines */
+@media (max-width: 900px) {
+  .history-filters { flex-direction: column; }
+  .history-filters .filter-group { width: 100%; min-width: unset; }
+  .history-summary { width: 100%; }
+  .history-table-wrapper {
+    overflow-x: auto;
+  }
+  .history-table-head, .history-row {
+    min-width: 920px;
+  }
+}
