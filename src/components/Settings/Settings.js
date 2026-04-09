@@ -12,6 +12,12 @@ function Settings({ user }) {
         dolarParalelo: '',
         dolarMercadoNegro: ''
     });
+    
+    const [cashierSettings, setCashierSettings] = useState({
+        cashierPhotoPrompt: true,
+        cashierUseSmartSearch: true,
+        cashierNoAutoClose: false
+    });
 
     // --- Estados para las fechas de última edición ---
     const [lastEdited, setLastEdited] = useState({
@@ -20,11 +26,18 @@ function Settings({ user }) {
         dolarParalelo: null,
         dolarMercadoNegro: null
     });
+    
+    const [cashierLastEdited, setCashierLastEdited] = useState({
+        cashierPhotoPrompt: null,
+        cashierUseSmartSearch: null,
+        cashierNoAutoClose: null
+    });
 
     // --- Ref para almacenar los datos originales cargados ---
     const originalData = useRef({
         username: '',
-        appSettings: {}
+        appSettings: {},
+        cashierSettings: {}
     });
 
     // --- Estados de UI (carga, guardado, errores, notificaciones) ---
@@ -74,6 +87,16 @@ function Settings({ user }) {
                     }));
                     originalData.current.appSettings = newAppSettings;
                 }
+                
+                // Load cashier settings from user preferences
+                const prefs = userDocSnap.exists() ? userDocSnap.data().prefs || {} : {};
+                const newCashierSettings = {
+                    cashierPhotoPrompt: prefs.photoPrompt !== undefined ? prefs.photoPrompt : true,
+                    cashierUseSmartSearch: prefs.useSmartProductSearch !== undefined ? prefs.useSmartProductSearch : true,
+                    cashierNoAutoClose: prefs.noAutoCloseAfterAdd !== undefined ? prefs.noAutoCloseAfterAdd : false
+                };
+                setCashierSettings(newCashierSettings);
+                originalData.current.cashierSettings = newCashierSettings;
             } catch (err) {
                 console.error("Error al cargar la configuración:", err);
                 setError('No se pudo cargar la configuración.');
@@ -118,6 +141,7 @@ function Settings({ user }) {
         e.preventDefault();
         setIsSavingSettings(true);
         const dataToSave = {};
+        const userPrefsToUpdate = {};
 
         // Compara cada campo y lo añade al objeto a guardar si ha cambiado
         for (const key in appSettings) {
@@ -126,26 +150,59 @@ function Settings({ user }) {
                 dataToSave[`${key}LastEdited`] = serverTimestamp();
             }
         }
+        
+        // Compare cashier settings and update user preferences
+        for (const key in cashierSettings) {
+            if (cashierSettings[key] !== originalData.current.cashierSettings[key]) {
+                if (key === 'cashierPhotoPrompt') {
+                    userPrefsToUpdate.photoPrompt = cashierSettings[key];
+                } else if (key === 'cashierUseSmartSearch') {
+                    userPrefsToUpdate.useSmartProductSearch = cashierSettings[key];
+                } else if (key === 'cashierNoAutoClose') {
+                    userPrefsToUpdate.noAutoCloseAfterAdd = cashierSettings[key];
+                }
+            }
+        }
 
-        if (Object.keys(dataToSave).length === 0) {
+        if (Object.keys(dataToSave).length === 0 && Object.keys(userPrefsToUpdate).length === 0) {
             showNotification('No hay cambios para guardar en la configuración.', 'info');
             setIsSavingSettings(false);
             return;
         }
 
         try {
-            const settingsDocRef = doc(db, 'settings', 'main');
-            await setDoc(settingsDocRef, dataToSave, { merge: true });
+            // Save global settings (dollar rates)
+            if (Object.keys(dataToSave).length > 0) {
+                const settingsDocRef = doc(db, 'settings', 'main');
+                await setDoc(settingsDocRef, dataToSave, { merge: true });
 
-            // Actualizar UI con las nuevas fechas y valores originales
-            const newLastEdited = {};
-            for (const key in appSettings) {
-                if (dataToSave.hasOwnProperty(key)) {
-                    newLastEdited[key] = new Date();
+                // Actualizar UI con las nuevas fechas y valores originales
+                const newLastEdited = {};
+                for (const key in appSettings) {
+                    if (dataToSave.hasOwnProperty(key)) {
+                        newLastEdited[key] = new Date();
+                    }
                 }
+                setLastEdited(prev => ({ ...prev, ...newLastEdited }));
+                originalData.current.appSettings = { ...appSettings };
             }
-            setLastEdited(prev => ({ ...prev, ...newLastEdited }));
-            originalData.current.appSettings = { ...appSettings };
+            
+            // Save cashier settings to user preferences
+            if (user?.uid && Object.keys(userPrefsToUpdate).length > 0) {
+                await setDoc(doc(db, 'users', user.uid), { 
+                    prefs: userPrefsToUpdate 
+                }, { merge: true });
+                
+                // Update cashier last edited
+                const newCashierLastEdited = {};
+                for (const key in cashierSettings) {
+                    if (userPrefsToUpdate.hasOwnProperty(key.replace('cashier', '').toLowerCase())) {
+                        newCashierLastEdited[key] = new Date();
+                    }
+                }
+                setCashierLastEdited(prev => ({ ...prev, ...newCashierLastEdited }));
+                originalData.current.cashierSettings = { ...cashierSettings };
+            }
 
             showNotification('Configuración de la aplicación guardada.', 'success');
         } catch (err) {
@@ -156,8 +213,15 @@ function Settings({ user }) {
     };
 
     const handleSettingsChange = (e) => {
-        const { name, value } = e.target;
-        setAppSettings(prev => ({ ...prev, [name]: value }));
+        const { name, value, type, checked } = e.target;
+        
+        // Handle cashier settings (checkboxes)
+        if (type === 'checkbox' && name.startsWith('cashier')) {
+            setCashierSettings(prev => ({ ...prev, [name]: checked }));
+        } else {
+            // Handle regular settings (inputs)
+            setAppSettings(prev => ({ ...prev, [name]: value }));
+        }
     };
 
     const handleImportComplete = (count) => {
@@ -221,7 +285,54 @@ function Settings({ user }) {
                                   </div>
                               </div>
                               
-                              <button type="submit" aria-busy={isSavingSettings}>{isSavingSettings ? 'Guardando...' : 'Guardar Cambios'}</button>
+                              {/* Opciones de Caja */}
+                              <div style={{ marginTop: '2rem' }}>
+                                  <h4 style={{ margin: '0 0 1rem 0' }}>Opciones de Caja</h4>
+                                  
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                      <input 
+                                          type="checkbox" 
+                                          name="cashierUseSmartSearch"
+                                          checked={cashierSettings.cashierUseSmartSearch}
+                                          onChange={handleSettingsChange}
+                                      />
+                                      <span>Búsqueda inteligente (Product Search Modal)</span>
+                                  </label>
+                                  <small style={{ marginLeft: '1.5rem', color: 'var(--pico-secondary-color, #6c757d)', lineHeight: '1.4' }}>
+                                      Habilitar búsqueda inteligente con coincidencias tolerantes al buscar productos en el modal de caja.
+                                  </small>
+                                  {cashierLastEdited.cashierUseSmartSearch && <small style={{ marginLeft: '1.5rem', color: 'var(--pico-secondary-color, #6c757d)' }}>Última actualización: {cashierLastEdited.cashierUseSmartSearch.toLocaleString()}</small>}
+                                  
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1rem' }}>
+                                      <input 
+                                          type="checkbox" 
+                                          name="cashierPhotoPrompt"
+                                          checked={cashierSettings.cashierPhotoPrompt}
+                                          onChange={handleSettingsChange}
+                                      />
+                                      <span>Preguntar por fotos en caja</span>
+                                  </label>
+                                  <small style={{ marginLeft: '1.5rem', color: 'var(--pico-secondary-color, #6c757d)', lineHeight: '1.4' }}>
+                                      Cuando un producto sin fotos se agregue al carrito en la sección de caja, mostrar un diálogo para añadir fotos.
+                                  </small>
+                                  {cashierLastEdited.cashierPhotoPrompt && <small style={{ marginLeft: '1.5rem', color: 'var(--pico-secondary-color, #6c757d)' }}>Última actualización: {cashierLastEdited.cashierPhotoPrompt.toLocaleString()}</small>}
+                                  
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1rem' }}>
+                                      <input 
+                                          type="checkbox" 
+                                          name="cashierNoAutoClose"
+                                          checked={cashierSettings.cashierNoAutoClose}
+                                          onChange={handleSettingsChange}
+                                      />
+                                      <span>No cerrar automáticamente tras agregar producto</span>
+                                  </label>
+                                  <small style={{ marginLeft: '1.5rem', color: 'var(--pico-secondary-color, #6c757d)', lineHeight: '1.4' }}>
+                                      Mantener el modal de búsqueda abierto después de agregar un producto al carrito.
+                                  </small>
+                                  {cashierLastEdited.cashierNoAutoClose && <small style={{ marginLeft: '1.5rem', color: 'var(--pico-secondary-color, #6c757d)' }}>Última actualización: {cashierLastEdited.cashierNoAutoClose.toLocaleString()}</small>}
+                              </div>
+                              
+                              <button type="submit" style={{ marginTop: '2rem' }} aria-busy={isSavingSettings}>{isSavingSettings ? 'Guardando...' : 'Guardar Cambios'}</button>
                           </article>
                       </form>
                     )}

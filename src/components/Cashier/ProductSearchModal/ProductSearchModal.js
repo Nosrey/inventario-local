@@ -29,11 +29,13 @@ function ProductSearchModal({
   cart, /* carrito de la pestaña activa */
   reservedMap = {}, /* mapa de reservas por otras pestañas: { docId: qty } */
   autoCloseAfterAdd = false,
+  useSmartSearch = false,
+  photoPromptEnabled = true,
 }) {
   const [rawSearch, setRawSearch] = useState('');
   const [search, setSearch] = useState('');
   // Default smart search OFF unless explicitly enabled in stored prefs
-  const [useSmartSearch, setUseSmartSearch] = useState(false);
+  const [localUseSmartSearch, setLocalUseSmartSearch] = useState(useSmartSearch);
   const [focusIndex, setFocusIndex] = useState(-1);
   const [modalNotice, setModalNotice] = useState(null); // {message,type}
   const [qtyDialog, setQtyDialog] = useState(null); // { product, quantity, max }
@@ -87,11 +89,11 @@ function ProductSearchModal({
           const data = r.exists() ? r.data() : {};
           const prefs = data.prefs || {};
           // Only enable when explicitly true in prefs
-          if (prefs && prefs.useSmartProductSearch === true) setUseSmartSearch(true);
+          if (prefs && prefs.useSmartProductSearch === true) setLocalUseSmartSearch(true);
         } else {
           // anonymous or no user: read from localStorage
           const raw = localStorage.getItem('prefs:useSmartProductSearch');
-          if (raw !== null) setUseSmartSearch(raw === '1');
+          if (raw !== null) setLocalUseSmartSearch(raw === '1');
         }
       } catch (e) {
         // ignore and keep default
@@ -179,7 +181,7 @@ function ProductSearchModal({
       // fallback to simple search if something goes wrong
       return productsWithStock.filter(p => (p.name || '').toLowerCase().includes(q) || String(p.id).includes(q));
     }
-  }, [search, productsWithStock, searcher, useSmartSearch]);
+  }, [search, productsWithStock, searcher, localUseSmartSearch]);
 
   // Ajuste focus si cambia longitud
   useEffect(() => {
@@ -299,8 +301,8 @@ function ProductSearchModal({
 
     // Check if product has photos
     const hasPhotos = !!(product.thumbnailWebp || product.thumbnail || product.image || (product.images && product.images.length > 0));
-    
-    if (!hasPhotos) {
+
+    if (!hasPhotos && photoPromptEnabled) {
       // Show photo prompt instead of adding to cart immediately
       setPhotoPrompt(product);
       confirmingRef.current = false;
@@ -338,7 +340,7 @@ function ProductSearchModal({
       inputRef.current?.focus();
       confirmingRef.current = false;
     });
-  }, [qtyDialog, onAddProduct, showModalNotice, autoCloseAfterAdd, onClose]);
+  }, [qtyDialog, onAddProduct, showModalNotice, autoCloseAfterAdd, onClose, appSettings]);
 
   // Handle photo prompt completion (either photo added or skipped)
   const handlePhotoPromptComplete = useCallback((productWithPhotos) => {
@@ -535,10 +537,10 @@ function ProductSearchModal({
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem' }}>
               <input
                 type="checkbox"
-                checked={!!useSmartSearch}
+                checked={!!localUseSmartSearch}
                 onChange={async (e) => {
                   const val = !!e.target.checked;
-                  setUseSmartSearch(val);
+                  setLocalUseSmartSearch(val);
                   try {
                     if (typeof user === 'object' && user?.uid) {
                       // persist under users/{uid}.prefs.useSmartProductSearch

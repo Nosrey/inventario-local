@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { smartSearch } from '../../utils/smartSearch.js';
-import { doc, setDoc, serverTimestamp, updateDoc, increment, runTransaction, getDoc, collection, getDocs, query, where, limit, onSnapshot, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs, writeBatch, onSnapshot, query, where, limit, runTransaction, increment } from 'firebase/firestore';
 import QtyButton from '../UI/QtyButton';
 import { db } from '../../firebase.js';
 import { useData } from '../../context/DataProvider.jsx';
@@ -94,9 +94,11 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
     const [prefUseSmartProductSearch, setPrefUseSmartProductSearch] = useState(false);
     // NOTE: Pref stored under users/{uid}.prefs.noAutoCloseAfterAdd represents the
     // "Do NOT auto-close after add" flag. Checkbox true => do NOT auto-close (modal stays open).
-    // For backward compatibility we also read the older key `prefs.autoCloseAfterAdd`.
+    // For backward compatibility we also read older key `prefs.autoCloseAfterAdd`.
     // Missing/undefined => OFF => modal WILL auto-close after add.
     const [prefDoNotAutoCloseAfterAdd, setPrefDoNotAutoCloseAfterAdd] = useState(false);
+    // Sync with user preferences
+    const [prefPhotoPrompt, setPrefPhotoPrompt] = useState(true);
 
     // load persisted pref on mount / when user changes
     useEffect(() => {
@@ -117,6 +119,8 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                     // Prefer the new clearer key `noAutoCloseAfterAdd`. Fall back to old key if needed.
                     if (prefs && prefs.noAutoCloseAfterAdd === true) setPrefDoNotAutoCloseAfterAdd(true);
                     else if (prefs && prefs.autoCloseAfterAdd === true) setPrefDoNotAutoCloseAfterAdd(true);
+                    // Load photo prompt preference
+                    if (prefs && prefs.photoPrompt !== undefined) setPrefPhotoPrompt(prefs.photoPrompt);
                 } else {
                     const raw = localStorage.getItem('prefs:useSmartProductSearch');
                     if (raw !== null) setPrefUseSmartProductSearch(raw === '1');
@@ -127,14 +131,20 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                         const rawOld = localStorage.getItem('prefs:autoCloseAfterAdd');
                         if (rawOld !== null) setPrefDoNotAutoCloseAfterAdd(rawOld === '1');
                     }
+                    // Load photo prompt from localStorage
+                    const rawPhoto = localStorage.getItem('prefs:photoPrompt');
+                    if (rawPhoto !== null) setPrefPhotoPrompt(rawPhoto === '1');
                 }
             } catch (e) {
-                // ignore
+                console.debug('Could not load user preferences', e);
             }
         };
         load();
         return () => { mounted = false; };
-    }, [user?.uid]);
+    }, [user]);
+
+    // Preferences are now loaded from user preferences only
+
     const [notification, setNotification] = useState({ message: '', type: '' });
     const [isProcessingSale, setIsProcessingSale] = useState(false);
     const [viewerOpen, setViewerOpen] = useState(false);
@@ -1955,6 +1965,8 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                 // Inverted pref stored as `autoCloseAfterAdd` represents "Do NOT auto-close".
                 // We compute the effective autoClose boolean (true => modal will auto-close).
                 autoCloseAfterAdd={!prefDoNotAutoCloseAfterAdd}
+                useSmartSearch={prefUseSmartProductSearch}
+                photoPromptEnabled={prefPhotoPrompt}
             />
 
             {/* Preferences modal */}
@@ -1986,6 +1998,26 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                             <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                 <input
                                     type="checkbox"
+                                    checked={!!prefPhotoPrompt}
+                                    onChange={async (e) => {
+                                        const v = !!e.target.checked;
+                                        setPrefPhotoPrompt(v);
+                                        try {
+                                            if (user?.uid) {
+                                                await setDoc(doc(db, 'users', user.uid), { prefs: { photoPrompt: v } }, { merge: true });
+                                            } else {
+                                                localStorage.setItem('prefs:photoPrompt', v ? '1' : '0');
+                                            }
+                                        } catch (err) {
+                                            console.debug('Could not persist pref', err);
+                                        }
+                                    }}
+                                />
+                                <span>Preguntar por fotos en caja</span>
+                            </label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <input
+                                    type="checkbox"
                                     // Checkbox now means "Do NOT auto-close after add" (inverted semantic)
                                     checked={!!prefDoNotAutoCloseAfterAdd}
                                     onChange={async (e) => {
@@ -1993,7 +2025,6 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                                         setPrefDoNotAutoCloseAfterAdd(v);
                                         try {
                                             if (user?.uid) {
-                                                // Persist only the new clearer key; reads still fallback to old key for compatibility
                                                 await setDoc(doc(db, 'users', user.uid), { prefs: { noAutoCloseAfterAdd: v } }, { merge: true });
                                             } else {
                                                 localStorage.setItem('prefs:noAutoCloseAfterAdd', v ? '1' : '0');
