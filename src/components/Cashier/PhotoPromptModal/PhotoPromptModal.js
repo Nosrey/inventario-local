@@ -27,6 +27,18 @@ function PhotoPromptModal({ isOpen, onClose, product, onPhotoUploaded, onPhotoSk
     fileInputRef.current?.click();
   };
 
+  const handleCancelUpload = () => {
+    // Cancel upload and reset state
+    setUploading(false);
+    setUploadProgress(0);
+    // Clear any ongoing upload tasks if needed
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    // Close modal
+    onClose();
+  };
+
   const handleFileSelect = async (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
@@ -175,27 +187,34 @@ function PhotoPromptModal({ isOpen, onClose, product, onPhotoUploaded, onPhotoSk
   return (
     <div className="photo-prompt-backdrop" onClick={handleBackdrop}>
       <div className="photo-prompt-modal">
-        <div className="photo-prompt-header">
-          <h3>¿Añadir foto al producto?</h3>
-          <button className="photo-prompt-close" onClick={onClose}>×</button>
-        </div>
-        
-        <div className="photo-prompt-content">
-          <p>El producto <strong>"{product.name}"</strong> no tiene fotos.</p>
-          <p>¿Deseas añadir una foto ahora?</p>
-        </div>
-
         {!uploading ? (
-          <div className="photo-prompt-actions">
-            <button className="photo-prompt-btn secondary" onClick={handleNoPhoto}>
-              No, continuar sin foto
-            </button>
-            <button className="photo-prompt-btn primary" onClick={handleYesPhoto}>
-              Sí, añadir foto
-            </button>
-          </div>
+          <>
+            <div className="photo-prompt-header">
+              <h3>¿Añadir foto al producto?</h3>
+              <button className="photo-prompt-close" onClick={onClose}>×</button>
+            </div>
+            
+            <div className="photo-prompt-content">
+              <p>El producto <strong>"{product.name}"</strong> no tiene fotos.</p>
+              <p>¿Deseas añadir una foto ahora?</p>
+            </div>
+
+            <div className="photo-prompt-actions">
+              <button className="photo-prompt-btn secondary" onClick={handleNoPhoto}>
+                No, continuar sin foto
+              </button>
+              <button className="photo-prompt-btn primary" onClick={handleYesPhoto}>
+                Sí, añadir foto
+              </button>
+            </div>
+          </>
         ) : (
           <div className="photo-prompt-upload">
+            <div className="photo-prompt-header">
+              <h3>Subiendo foto</h3>
+              <button className="photo-prompt-close" onClick={handleCancelUpload}>×</button>
+            </div>
+            
             <div className="upload-progress">
               <div className="progress-bar">
                 <div 
@@ -204,6 +223,7 @@ function PhotoPromptModal({ isOpen, onClose, product, onPhotoUploaded, onPhotoSk
                 ></div>
               </div>
               <p>Subiendo foto... {uploadProgress}%</p>
+              <p className="upload-status">Por favor espera mientras se procesa la imagen</p>
             </div>
           </div>
         )}

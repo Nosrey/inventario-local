@@ -130,19 +130,44 @@
 
 .photo-prompt-upload {
   text-align: center;
+  padding: 20px 0;
 }
 
 .upload-progress {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
 }
 
 .upload-progress p {
   margin: 0;
   color: var(--photo-prompt-text-dim);
   font-size: 0.9rem;
+}
+
+.upload-status {
+  margin: 0;
+  color: var(--photo-prompt-text);
+  font-size: 0.85rem;
+  font-style: italic;
+  opacity: 0.8;
+}
+
+/* Animación para la barra de progreso */
+.progress-fill {
+  transition: width 0.3s ease;
+}
+
+/* Efecto de pulso durante la carga */
+.upload-progress {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
 }
 
 .progress-bar {
