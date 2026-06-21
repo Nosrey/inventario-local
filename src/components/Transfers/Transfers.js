@@ -192,9 +192,11 @@ function Transfers({ user }) {
   const destInventory = inventories.find(i => i.id === toInventoryId) || null;
   const destInventoryProductMap = destInventory?.products || {};
 
-  // Reconcile existing item quantities when the origin inventory changes or
-  // when inventories are (re)loaded. This ensures quantities never exceed
-  // the available stock in the selected origin without requiring manual edit.
+  // Reconcile existing item quantities when the origin inventory changes.
+  // This ensures quantities never exceed the available stock in the selected
+  // origin without requiring manual edit. Note: we only reconcile when the
+  // user explicitly changes the origin inventory, not when inventories are
+  // updated online (to avoid disrupting the user's cart during concurrent edits).
   useEffect(() => {
     if (!inventories || !inventories.length) return;
     const originMap = (inventories.find(i => i.id === fromInventoryId)?.products) || {};
@@ -213,7 +215,7 @@ function Transfers({ user }) {
       }
       return next;
     });
-  }, [fromInventoryId, inventories]);
+  }, [fromInventoryId]);
 
   const handleConfirm = () => {
     // guard: nothing to confirm
@@ -235,16 +237,25 @@ function Transfers({ user }) {
       return;
     }
 
-    // validate against local inventory snapshot
+    // validate against local inventory snapshot and adjust quantities if needed
     const originInv = inventories.find(i => i.id === fromInventoryId);
     if (!originInv) { setTransferNotice({ message: 'Inventario de origen no encontrado.', type: 'error' }); return; }
 
-    for (const it of items) {
+    let adjustedItems = [...items];
+    let hadAdjustments = false;
+    for (const it of adjustedItems) {
       const avail = Number(originInv.products?.[it.docId]?.quantity) || 0;
-      if ((Number(it.quantity) || 0) > avail) {
-        setTransferNotice({ message: `Stock insuficiente para ${it.name || it.docId}. Disponible: ${avail}.`, type: 'error' });
-        return;
+      const requested = Number(it.quantity) || 0;
+      if (requested > avail) {
+        it.quantity = avail;
+        hadAdjustments = true;
       }
+    }
+
+    if (hadAdjustments) {
+      setItems(adjustedItems);
+      setTransferNotice({ message: 'Se ajustaron las cantidades al stock disponible. Por favor confirma nuevamente.', type: 'info' });
+      return;
     }
 
     try {

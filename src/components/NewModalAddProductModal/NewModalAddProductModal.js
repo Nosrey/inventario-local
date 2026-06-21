@@ -52,12 +52,15 @@ function NewModalAddProductModal({
 
   const initializedRef = useRef(false);
   const lastProductIdRef = useRef(null); // Track which product we last initialized
+  const createModeInitializedRef = useRef(false); // Track if create mode was initialized
+  const userModifiedQuantitiesRef = useRef(false); // Track if user manually modified quantities
 
   // Initialize when opening / switching to edit
   useEffect(() => {
     if (!isOpen) {
       initializedRef.current = false;
       lastProductIdRef.current = null;
+      createModeInitializedRef.current = false;
       return;
     }
 
@@ -108,7 +111,8 @@ function NewModalAddProductModal({
       setImagePreviews(previews);
       if (fileRef.current) fileRef.current.value = '';
       initializedRef.current = true; // Marca como inicializado
-    } else if (!productToEdit) {
+    } else if (!productToEdit && !createModeInitializedRef.current) {
+      // Solo inicializar modo creación una vez, no cuando inventarios cambian online
       setName('');
       setPrice('');
       setCost('');
@@ -118,8 +122,36 @@ function NewModalAddProductModal({
       setImagePreviews([]);
       if (fileRef.current) fileRef.current.value = '';
       if (inventories.length > 0) setSelectedInventory(inventories[0].id);
+      createModeInitializedRef.current = true;
     }
-  }, [isOpen, productToEdit, inventories]);
+  }, [isOpen, productToEdit]);
+
+  // Keep inventory quantities fresh when inventories change online (only in edit mode, only if user hasn't manually modified)
+  useEffect(() => {
+    if (!isOpen || !productToEdit || userModifiedQuantitiesRef.current) return;
+    
+    // Update quantities from fresh inventory data
+    const freshQuantities = inventories.map(inv => ({
+      inventoryId: inv.id,
+      quantity: Number(inv.products?.[productToEdit.docId]?.quantity) || 0
+    }));
+    
+    // Only update if the quantities actually changed
+    const currentMap = new Map(inventoryQuantities.map(i => [i.inventoryId, i.quantity]));
+    const freshMap = new Map(freshQuantities.map(i => [i.inventoryId, i.quantity]));
+    
+    let hasChanges = false;
+    for (const [invId, qty] of freshMap) {
+      if (currentMap.get(invId) !== qty) {
+        hasChanges = true;
+        break;
+      }
+    }
+    
+    if (hasChanges) {
+      setInventoryQuantities(freshQuantities);
+    }
+  }, [inventories, isOpen, productToEdit, inventoryQuantities]);
 
   // basic cleanup for object URLs
   useEffect(() => () => {
@@ -175,6 +207,7 @@ function NewModalAddProductModal({
   };
 
   const handleQtyChange = (inventoryId, value) => {
+    userModifiedQuantitiesRef.current = true;
     setInventoryQuantities(prev => prev.map(i => i.inventoryId === inventoryId ? { ...i, quantity: Number(value) } : i));
   };
 

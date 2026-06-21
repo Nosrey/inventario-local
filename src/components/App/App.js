@@ -36,7 +36,6 @@ function App({ user, onLogout, initialActiveInventoryId }) {
             <Route path="/cashier">
               <Cashier
                 user={user}
-                initialActiveInventoryId={initialActiveInventoryId}
               />
             </Route>
             <Route path="/buys">

@@ -146,15 +146,17 @@ function ProductSearchModal({
     });
   }, [allProducts, inventoryProductMap, cartQtyMap, reservedMap]);
 
-  // Ajuste precio
+  // Ajuste precio - usa la misma lógica que Cashier para consistencia
   const adjustUSD = useCallback((originalPriceUSD) => {
     const { dolarBCV, dolarParalelo } = appSettings || {};
     const price = Number(originalPriceUSD);
     const bcv = Number(dolarBCV);
     const paralelo = Number(dolarParalelo);
     if (!(price > 0) || !(bcv > 0) || !(paralelo > 0)) return price || 0;
-    const bs = price * paralelo;
-    return +(bs / bcv);
+    const precioBsExact = price * paralelo;
+    const bsRaw = Math.ceil(precioBsExact);
+    const bsRounded10 = Math.ceil(bsRaw / 10) * 10;
+    return +(precioBsExact / bcv);
   }, [appSettings]);
 
   const handleClear = () => {
@@ -642,12 +644,15 @@ function ProductSearchModal({
 
             {visibleSlice.map(({ product, index }) => {
               const adjusted = adjustUSD(product.price);
-              const bcvRate = Number(appSettings?.dolarBCV) || 1;
-              const adjustedBsValue = adjusted * bcvRate;
-              // redondear hacia arriba al siguiente múltiplo de 10 para mostrar en Bs
-              const adjustedBsRaw = Math.max(0, Math.round(adjustedBsValue));
-              const adjustedBsRounded10 = Math.ceil(adjustedBsRaw / 10) * 10;
-              const adjustedBsLabel = `${adjustedBsRounded10.toLocaleString('es-VE')} Bs.`;
+              const { dolarBCV, dolarParalelo } = appSettings || {};
+              const price = Number(product.price);
+              const bcv = Number(dolarBCV);
+              const par = Number(dolarParalelo);
+              // Usar la misma lógica que Cashier para calcular Bs
+              const precioBsExact = price * par;
+              const bsRaw = Math.ceil(precioBsExact);
+              const bsRounded10 = Math.ceil(bsRaw / 10) * 10;
+              const adjustedBsLabel = `${bsRounded10.toLocaleString('es-VE')} Bs.`;
               const focused = index === focusIndex;
               return (
                 <ProductRow

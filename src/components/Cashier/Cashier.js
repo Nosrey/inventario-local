@@ -38,7 +38,7 @@ const formatUSD = (v) =>
 const formatBs = (v) =>
     `${Math.max(0, Math.round(v)).toLocaleString('es-VE')} Bs.`;
 
-function Cashier({ user, initialActiveInventoryId }) { // añadido prop
+function Cashier({ user }) {
     const { loading, products, inventories, settings } = useData();
     const [activeInventoryId, setActiveInventoryId] = useState(null);
     // PESTAÑAS: 9 pestañas desplegadas por defecto (1..9)
@@ -90,6 +90,7 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
     const [error, setError] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [showPreferences, setShowPreferences] = useState(false);
+    const [showInventorySelectModal, setShowInventorySelectModal] = useState(false);
     // Default prefs are OFF when not present in DB/localStorage
     const [prefUseSmartProductSearch, setPrefUseSmartProductSearch] = useState(false);
     // NOTE: Pref stored under users/{uid}.prefs.noAutoCloseAfterAdd represents the
@@ -923,33 +924,33 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
 
         let candidate = null;
 
-        // Prioridad 1: valor remoto pasado por prop
-        if (initialActiveInventoryId && inventories.some(i => i.id === initialActiveInventoryId)) {
-            candidate = initialActiveInventoryId;
-        }
-
-        // Prioridad 2: localStorage (si aún no hay candidato)
-        if (!candidate && lsKey) {
+        // Prioridad 1: localStorage (selección local guardada)
+        if (lsKey) {
             const lsVal = localStorage.getItem(lsKey);
             if (lsVal && inventories.some(i => i.id === lsVal)) {
                 candidate = lsVal;
             }
         }
 
-        // Prioridad 3: valor actual (si es válido)
+        // Prioridad 2: valor actual (si es válido)
         if (!candidate && activeInventoryId && inventories.some(i => i.id === activeInventoryId)) {
             candidate = activeInventoryId;
         }
 
-        // Prioridad 4: primer inventario disponible
+        // Prioridad 3: primer inventario disponible (default)
         if (!candidate) {
             candidate = inventories[0].id;
+        }
+
+        // Si no hay selección guardada en localStorage y es la primera carga, mostrar modal
+        if (lsKey && !localStorage.getItem(lsKey) && !userInteractedRef.current) {
+            setShowInventorySelectModal(true);
         }
 
         if (candidate !== activeInventoryId) {
             setActiveInventoryId(candidate);
         }
-    }, [inventories, initialActiveInventoryId, activeInventoryId, user]);
+    }, [inventories, activeInventoryId, user]);
 
     const showNotification = (message, type = 'error', duration = 4000) => {
         setNotification({ message, type });
@@ -960,6 +961,25 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
     const handleInventoryChange = async (newInventoryId) => {
         if (newInventoryId === activeInventoryId) return;
         userInteractedRef.current = true; // Marca que el usuario ya intervino
+
+        // Ajustar cantidades del carrito al stock disponible en el nuevo inventario
+        const newInventory = inventories.find(inv => inv.id === newInventoryId);
+        if (newInventory) {
+            setTabs(prevTabs => prevTabs.map(tab => {
+                const adjustedCart = tab.cart.map(item => {
+                    const productDocId = item.docId || item.id;
+                    const stockInNewInventory = Number(newInventory.products?.[productDocId]?.quantity) || 0;
+                    const currentQuantity = Number(item.quantity) || 0;
+                    const adjustedQuantity = Math.min(currentQuantity, stockInNewInventory);
+                    return {
+                        ...item,
+                        quantity: adjustedQuantity
+                    };
+                });
+                return { ...tab, cart: adjustedCart };
+            }));
+        }
+
         setActiveInventoryId(newInventoryId);
 
         const lsKey = user?.uid ? `activeInventory:${user.uid}` : null;
@@ -2039,6 +2059,34 @@ function Cashier({ user, initialActiveInventoryId }) { // añadido prop
                         </div>
                         <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
                             <button className="outline secondary" onClick={() => setShowPreferences(false)}>Cerrar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Inventory selection modal (shown when no local selection exists) */}
+            {showInventorySelectModal && (
+                <div className="modal-backdrop" role="dialog" aria-modal="true">
+                    <div className="modal-card">
+                        <h3>Seleccionar Inventario</h3>
+                        <p style={{ marginBottom: '1rem', color: '#666' }}>¿Qué inventario deseas usar en el cashier?</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+                            {inventories.map(inv => (
+                                <button
+                                    key={inv.id}
+                                    className={activeInventoryId === inv.id ? 'primary' : 'outline secondary'}
+                                    onClick={() => {
+                                        setActiveInventoryId(inv.id);
+                                        const lsKey = user?.uid ? `activeInventory:${user.uid}` : null;
+                                        if (lsKey) localStorage.setItem(lsKey, inv.id);
+                                        setShowInventorySelectModal(false);
+                                        userInteractedRef.current = true;
+                                    }}
+                                    style={{ padding: '0.75rem', textAlign: 'left' }}
+                                >
+                                    {inv.name}
+                                </button>
+                            ))}
                         </div>
                     </div>
                 </div>
