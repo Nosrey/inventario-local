@@ -899,6 +899,23 @@
   margin: 0;
 }
 
+/* Feedback visual cuando la cantidad es ajustada por exceder el máximo */
+.lps-qty-input-adjusted {
+  border-color: var(--lps-danger) !important;
+  background: rgba(220, 38, 38, 0.08) !important;
+  color: var(--lps-danger) !important;
+  animation: qty-adjusted-flash .3s ease;
+}
+
+@keyframes qty-adjusted-flash {
+  0% {
+    background: rgba(220, 38, 68, 0.25);
+  }
+  100% {
+    background: rgba(220, 38, 38, 0.08);
+  }
+}
+
 .lps-qty-actions {
   display: flex;
   justify-content: flex-end;
@@ -921,10 +938,200 @@
   background: var(--lps-surface);
 }
 
+/* Panel expandido para incluir precios e inventarios */
+.lps-qty-panel-expanded {
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 1.25rem 1.35rem 1.4rem;
+}
+
+/* Panel con error - borde rojo visible */
+.lps-qty-panel-error {
+  border: 2px solid var(--lps-danger) !important;
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.15) !important;
+}
+
+.lps-qty-panel-expanded::-webkit-scrollbar {
+  width: 6px;
+}
+
+.lps-qty-panel-expanded::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.lps-qty-panel-expanded::-webkit-scrollbar-thumb {
+  background: var(--lps-border);
+  border-radius: 10px;
+}
+
+/* Sección de títulos */
+.lps-qty-section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lps-text-dim);
+  margin-top: 1rem;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--lps-border);
+}
+
+.lps-qty-section-title:first-of-type {
+  margin-top: 0.8rem;
+}
+
+/* Sección de precios */
+.lps-qty-prices-section {
+  margin-top: 0.8rem;
+}
+
+.lps-qty-prices-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+}
+
+.lps-qty-price-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.lps-qty-price-field label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--lps-text-dim);
+}
+
+.lps-qty-price-input {
+  padding: 0.45rem 0.5rem;
+  border: 1px solid var(--lps-border);
+  border-radius: 8px;
+  background: var(--lps-bg);
+  color: var(--lps-text);
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-align: center;
+  transition: border-color var(--lps-transition), background var(--lps-transition);
+}
+
+.lps-qty-price-input:focus {
+  outline: none;
+  border-color: var(--lps-primary);
+  background: var(--lps-surface);
+  box-shadow: var(--lps-focus-ring);
+}
+
+/* Campo de margen con sufijo */
+.lps-qty-margin-field {
+  position: relative;
+}
+
+.lps-qty-margin-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.lps-qty-margin-input {
+  padding-right: 1.8rem;
+  text-align: center;
+}
+
+.lps-qty-margin-suffix {
+  position: absolute;
+  right: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--lps-text-dim);
+  pointer-events: none;
+}
+
+/* Sección de inventarios */
+.lps-qty-inventories-section {
+  margin-top: 0.8rem;
+}
+
+.lps-qty-inventories-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.6rem;
+}
+
+.lps-qty-inventory-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.lps-qty-inventory-field label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--lps-text-dim);
+}
+
+.lps-qty-inventory-input {
+  padding: 0.45rem 0.5rem;
+  border: 1px solid var(--lps-border);
+  border-radius: 8px;
+  background: var(--lps-bg);
+  color: var(--lps-text);
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-align: center;
+  transition: border-color var(--lps-transition), background var(--lps-transition);
+}
+
+.lps-qty-inventory-input:focus {
+  outline: none;
+  border-color: var(--lps-primary);
+  background: var(--lps-surface);
+  box-shadow: var(--lps-focus-ring);
+}
+
+.lps-qty-inventory-input::placeholder {
+  color: var(--lps-text-dim);
+  opacity: 0.6;
+}
+
+/* Precio ajustado al cliente */
+.lps-qty-adjusted-price {
+  margin-top: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  background: color-mix(in srgb, var(--lps-primary) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--lps-primary) 20%, transparent);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.lps-qty-adjusted-label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--lps-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.lps-qty-adjusted-value {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--lps-primary);
+}
+
+/* Responsive para mobile */
 @media (max-width: 560px) {
   .lps-qty-panel {
     padding: 1rem 1rem 1.1rem;
     border-radius: 16px;
+  }
+
+  .lps-qty-panel-expanded {
+    padding: 1rem 1rem 1.1rem;
+    max-height: 90vh;
   }
 
   .lps-qty-btn {
@@ -937,5 +1144,53 @@
 
   .lps-qty-actions {
     justify-content: center;
+  }
+
+  /* Grid de precios en mobile - 2 columnas */
+  .lps-qty-prices-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+  }
+
+  .lps-qty-margin-field {
+    grid-column: span 2;
+  }
+
+  /* Grid de inventarios en mobile - sigue siendo 2 columnas */
+  .lps-qty-inventories-grid {
+    gap: 0.5rem;
+  }
+
+  /* Ajustes de fuentes en mobile */
+  .lps-qty-section-title {
+    font-size: 0.7rem;
+    margin-top: 0.8rem;
+  }
+
+  .lps-qty-price-field label,
+  .lps-qty-inventory-field label {
+    font-size: 0.68rem;
+  }
+
+  .lps-qty-price-input,
+  .lps-qty-inventory-input {
+    font-size: 0.85rem;
+    padding: 0.4rem 0.45rem;
+  }
+}
+
+@media (max-width: 400px) {
+  /* Grid de precios en pantallas muy pequeñas - 1 columna */
+  .lps-qty-prices-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lps-qty-margin-field {
+    grid-column: span 1;
+  }
+
+  /* Grid de inventarios en pantallas muy pequeñas - 1 columna */
+  .lps-qty-inventories-grid {
+    grid-template-columns: 1fr;
   }
 }

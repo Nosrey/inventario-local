@@ -22,18 +22,41 @@ function ProductSearchModalTransfers({
   const [modalNotice, setModalNotice] = useState(null);
   const [qtyDialog, setQtyDialog] = useState(null);
   const [qtyInputValue, setQtyInputValue] = useState('');
+  const [wasAdjusted, setWasAdjusted] = useState(false);
+  const [editPrice, setEditPrice] = useState('');
+  const [editCost, setEditCost] = useState('');
+  const [editMargin, setEditMargin] = useState(100);
+  const [originQtyOverride, setOriginQtyOverride] = useState('');
+  const [destQtyOverride, setDestQtyOverride] = useState('');
 
   const listRef = useRef(null);
   const backdropRef = useRef(null);
   const inputRef = useRef(null);
   const qtyInputRef = useRef(null);
+  const confirmingRef = useRef(false);
 
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [rowHeight, setRowHeight] = useState(74);
 
   useEffect(() => { const h = setTimeout(() => setSearch(rawSearch), 120); return () => clearTimeout(h); }, [rawSearch]);
-  useEffect(() => { if (!isOpen) { setRawSearch(''); setSearch(''); setFocusIndex(-1); setScrollTop(0); } }, [isOpen]);
+  useEffect(() => {
+    if (isOpen) return;
+    setRawSearch('');
+    setSearch('');
+    setFocusIndex(-1);
+    setScrollTop(0);
+    setQtyDialog(null);
+    setQtyInputValue('');
+    setWasAdjusted(false);
+    setEditPrice('');
+    setEditCost('');
+    setEditMargin(100);
+    setOriginQtyOverride('');
+    setDestQtyOverride('');
+    setModalNotice(null);
+    confirmingRef.current = false;
+  }, [isOpen]);
   useEffect(() => { if (isOpen) { const t = setTimeout(() => inputRef.current?.focus(), 40); return () => clearTimeout(t); } }, [isOpen]);
   useEffect(() => { if (!isOpen) return; const handler = (e) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler); }, [isOpen, onClose]);
 
@@ -64,9 +87,31 @@ function ProductSearchModalTransfers({
     const bcv = Number(dolarBCV);
     const paralelo = Number(dolarParalelo);
     if (!(price > 0) || !(bcv > 0) || !(paralelo > 0)) return price || 0;
-    const bs = price * paralelo;
-    return +(bs / bcv);
+    const precioBsExact = price * paralelo;
+    const bsRaw = Math.ceil(precioBsExact);
+    const bsRounded10 = Math.ceil(bsRaw / 10) * 10;
+    return +(precioBsExact / bcv);
   }, [appSettings]);
+
+  const adjustedPriceDisplay = useMemo(() => {
+    const price = Number(editPrice || qtyDialog?.product?.price || 0);
+    if (price <= 0) return null;
+    const { dolarBCV, dolarParalelo } = appSettings || {};
+    const bcv = Number(dolarBCV);
+    const paralelo = Number(dolarParalelo);
+    if (!(bcv > 0) || !(paralelo > 0)) return null;
+    
+    const precioBsExact = price * paralelo;
+    const bsRaw = Math.ceil(precioBsExact);
+    const bsRounded10 = Math.ceil(bsRaw / 10) * 10;
+    const adjustedUSD = +(precioBsExact / bcv).toFixed(2);
+    
+    return {
+      adjustedUSD: adjustedUSD.toFixed(2),
+      bsRounded: bsRounded10.toLocaleString('es-VE'),
+      fullLabel: `${adjustedUSD.toFixed(2).toLocaleString('es-VE')} $ / ${bsRounded10.toLocaleString('es-VE')} Bs.`
+    };
+  }, [editPrice, qtyDialog?.product?.price, appSettings]);
 
   const handleClear = () => {
     setRawSearch('');
@@ -106,15 +151,27 @@ function ProductSearchModalTransfers({
 
   const showModalNotice = useCallback((message, type = 'error', ms = 2600) => { setModalNotice({ message, type }); if (showModalNotice._t) clearTimeout(showModalNotice._t); showModalNotice._t = setTimeout(() => setModalNotice(null), ms); }, []);
 
-  const confirmingRef = useRef(false);
-
   const confirmAddQuantity = useCallback(() => {
     if (confirmingRef.current) return; if (!qtyDialog) return; confirmingRef.current = true;
     const { product, quantity, max } = qtyDialog; const chosen = quantity; if (chosen <= 0) { showModalNotice('Cantidad inválida.', 'error', 1800); confirmingRef.current = false; return; }
     if (Number.isFinite(max) && chosen > max) { showModalNotice('La cantidad excede el stock disponible en el inventario de origen.', 'error', 2000); confirmingRef.current = false; return; }
+    
+    // Check if prices or quantities were edited
+    const priceEdited = editPrice !== '' && editPrice !== (product.price || '');
+    const costEdited = editCost !== '' && editCost !== (product.cost || '');
+    const originQtyEdited = originQtyOverride !== '' && originQtyOverride !== String(product.stock || '');
+    const destQtyEdited = destQtyOverride !== '' && destQtyOverride !== String(qtyDialog.destStock || '');
+    
+    const productUpdates = {};
+    if (priceEdited) productUpdates.price = Number(editPrice);
+    if (costEdited) productUpdates.cost = Number(editCost);
+    // Always send stock values for correct display calculation
+    productUpdates.originStock = Number(originQtyOverride || product.stock || 0);
+    productUpdates.destStock = Number(destQtyOverride || qtyDialog.destStock || 0);
+    
     // For transfers we will accept the chosen amount but remote validation happens at confirm time
     const key = product.docId || product.id;
-    onAddProduct({ ...product, docId: key, totalStock: product.originalStock }, chosen);
+    onAddProduct({ ...product, docId: key, totalStock: product.originalStock, ...productUpdates }, chosen);
     if (chosen === 1) {
       showModalNotice(`Se añadió 1 unidad de "${product.name}".`, 'success', 2200);
     } else {
@@ -122,18 +179,114 @@ function ProductSearchModalTransfers({
     }
     setQtyDialog(null); setQtyInputValue(''); setRawSearch(''); setSearch(''); setFocusIndex(-1);
     requestAnimationFrame(() => { inputRef.current?.focus(); confirmingRef.current = false; });
-  }, [qtyDialog, onAddProduct, showModalNotice]);
+  }, [qtyDialog, onAddProduct, showModalNotice, editPrice, editCost, originQtyOverride, destQtyOverride]);
 
-  const openQtyDialog = useCallback((p, destStock = 0) => { setQtyDialog({ product: p, quantity: 1, max: Number.isFinite(p.stock) ? p.stock : undefined, destStock: Number(destStock || 0) }); setQtyInputValue(''); }, [showModalNotice]);
-  const closeQtyDialog = useCallback(() => { setQtyDialog(null); setQtyInputValue(''); requestAnimationFrame(() => inputRef.current?.focus()); }, []);
+  const openQtyDialog = useCallback((p, destStock = 0) => { 
+    const originalStock = Number(p.stock || 0);
+    setQtyDialog({ product: p, quantity: 1, originalStock: originalStock, destStock: Number(destStock || 0) }); 
+    setQtyInputValue('1'); 
+    setWasAdjusted(false);
+    setEditPrice(p.price || '');
+    setEditCost(p.cost || '');
+    setOriginQtyOverride(String(originalStock));
+    setDestQtyOverride(String(destStock || ''));
+    try {
+      const priceN = Number(p.price || 0);
+      const costN = Number(p.cost || 0);
+      if (costN > 0) setEditMargin(+(((priceN / costN) - 1) * 100).toFixed(2));
+      else setEditMargin(100);
+    } catch (e) { setEditMargin(100); }
+  }, [showModalNotice]);
+  const closeQtyDialog = useCallback(() => { 
+    setQtyDialog(null); 
+    setQtyInputValue(''); 
+    setEditPrice('');
+    setEditCost('');
+    setEditMargin(100);
+    setOriginQtyOverride('');
+    setDestQtyOverride('');
+    requestAnimationFrame(() => inputRef.current?.focus()); 
+  }, []);
+
+  // Get the current origin stock (from override input)
+  const getCurrentOriginStock = useCallback(() => {
+    return Number(originQtyOverride || qtyDialog?.originalStock || 0);
+  }, [originQtyOverride, qtyDialog?.originalStock]);
+
   const changeQuantity = useCallback((delta) => {
     setQtyDialog(d => {
-      if (!d) return d; let base = Number(d.quantity || 0); let q = base + delta; if (q < 1) q = 1; // enforce max when provided
-      if (Number.isFinite(d.max) && q > d.max) q = d.max; setQtyInputValue(String(q)); return { ...d, quantity: q };
+      if (!d) return d; 
+      let base = Number(d.quantity || 0); 
+      let q = base + delta; 
+      if (q < 1) q = 1;
+      setQtyInputValue(String(q)); 
+      
+      // Check if quantity exceeds current origin stock
+      const currentOriginStock = getCurrentOriginStock();
+      const exceedsStock = Number.isFinite(currentOriginStock) && q > currentOriginStock;
+      setWasAdjusted(exceedsStock);
+      
+      return { ...d, quantity: q };
     });
-  }, []);
-  const setQuantityFromInput = useCallback((raw) => { const cleaned = raw.replace(/[^\d]/g, ''); setQtyInputValue(cleaned); setQtyDialog(d => { if (!d) return d; if (cleaned === '') return { ...d, quantity: 1 }; let q = parseInt(cleaned, 10); if (isNaN(q)) q = 1; if (q < 1) q = 1; if (Number.isFinite(d.max) && q > d.max) q = d.max; return { ...d, quantity: q }; }); }, []);
-  useEffect(() => { if (qtyDialog) { const t = setTimeout(() => { qtyInputRef.current?.focus(); }, 40); return () => clearTimeout(t); } }, [qtyDialog]);
+  }, [getCurrentOriginStock]);
+  const setQuantityFromInput = useCallback((raw) => { 
+    const cleaned = raw.replace(/[^\d]/g, ''); 
+    setQtyInputValue(cleaned); 
+    setQtyDialog(d => { 
+      if (!d) return d; 
+      if (cleaned === '') { setWasAdjusted(false); return { ...d, quantity: 1 }; } 
+      let q = parseInt(cleaned, 10); 
+      if (isNaN(q)) q = 1; 
+      if (q < 1) q = 1; 
+      
+      // Check if quantity exceeds current origin stock
+      const currentOriginStock = getCurrentOriginStock();
+      const exceedsStock = Number.isFinite(currentOriginStock) && q > currentOriginStock;
+      setWasAdjusted(exceedsStock);
+      
+      return { ...d, quantity: q }; 
+    }); 
+  }, [getCurrentOriginStock]);
+
+  const handleEditCostChange = (value) => {
+    setEditCost(value);
+    try {
+      const costN = Number(value || 0);
+      const priceN = Number(editPrice || 0);
+      if (costN > 0) setEditMargin(+(((priceN / costN) - 1) * 100).toFixed(2));
+    } catch (e) {}
+  };
+
+  const handleEditPriceChange = (value) => {
+    setEditPrice(value);
+    try {
+      const costN = Number(editCost || 0);
+      const priceN = Number(value || 0);
+      if (costN > 0) setEditMargin(+(((priceN / costN) - 1) * 100).toFixed(2));
+    } catch (e) {}
+  };
+
+  const handleEditMarginChange = (value) => {
+    const pct = Number(value || 0);
+    setEditMargin(pct);
+    const costN = Number(editCost || 0);
+    if (!Number.isFinite(costN) || costN <= 0) return;
+    const newPrice = +(costN * (1 + pct / 100)).toFixed(2);
+    setEditPrice(String(newPrice));
+  };
+
+  const handleOriginQtyChange = (value) => {
+    setOriginQtyOverride(value);
+    // Re-validate current quantity against new origin stock
+    setQtyDialog(d => {
+      if (!d) return d;
+      const currentQty = Number(d.quantity || 0);
+      const newOriginStock = Number(value || 0);
+      const exceedsStock = newOriginStock > 0 && currentQty > newOriginStock;
+      setWasAdjusted(exceedsStock);
+      return { ...d, quantity: currentQty };
+    });
+  };
 
   const attemptSelect = useCallback((p, destStock) => {
     const originStock = Number(p?.stock || 0);
@@ -160,21 +313,29 @@ function ProductSearchModalTransfers({
         )}
         {qtyDialog && (
           <div className="lps-qty-overlay" role="dialog" aria-modal="true" aria-label="Seleccionar cantidad">
-            <div className="lps-qty-panel">
+            <div className={`lps-qty-panel lps-qty-panel-expanded ${wasAdjusted ? 'lps-qty-panel-error' : ''}`}>
               <h3 className="lps-qty-title">{qtyDialog.product.name}</h3>
-              <p className="lps-qty-stock">Stock disponible: <strong>{qtyDialog.max}</strong></p>
+              <p className="lps-qty-stock">Stock disponible: <strong>{getCurrentOriginStock()}</strong></p>
+              
               <div className="lps-qty-control">
                 <QtyButton variant="minus" onClick={() => changeQuantity(-1)} ariaLabel="Restar" disabled={qtyDialog.quantity <= 1} />
-                <input ref={qtyInputRef} className="lps-qty-input" type="text" inputMode="numeric" placeholder="1" min="1" value={qtyInputValue} onChange={(e) => setQuantityFromInput(e.target.value)} />
-                <QtyButton variant="plus" onClick={() => changeQuantity(1)} ariaLabel="Sumar" disabled={Number.isFinite(qtyDialog?.max) ? qtyDialog.quantity >= qtyDialog.max : false} />
+                <input ref={qtyInputRef} className={`lps-qty-input ${wasAdjusted ? 'lps-qty-input-adjusted' : ''}`} type="text" inputMode="numeric" placeholder="1" min="1" value={qtyInputValue} onChange={(e) => setQuantityFromInput(e.target.value)} />
+                <QtyButton variant="plus" onClick={() => changeQuantity(1)} ariaLabel="Sumar" disabled={false} />
               </div>
 
               {/* Estimated totals for transfers: cuánto sumas y cuánto costará */}
               <div className="lps-qty-estimate" style={{ marginTop: '0.6rem', color: 'var(--c-text-dim)', fontSize: '0.95rem' }}>
+                {wasAdjusted && (
+                  <div style={{ color: 'var(--c-danger)', fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem', padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '6px', borderLeft: '3px solid var(--c-danger)' }}>
+                    ⚠️ La cantidad ({qtyDialog.quantity}) excede el stock disponible ({getCurrentOriginStock()})
+                  </div>
+                )}
                 {(() => {
                   const qty = Number(qtyDialog.quantity || 0);
                   const destBefore = Number(qtyDialog.destStock || 0);
                   const destAfter = destBefore + qty;
+                  const originCurrent = getCurrentOriginStock();
+                  const originAfter = Math.max(0, originCurrent - qty);
                   return (
                     <div>
                       <div>Se añadirán: <strong>{qty}</strong> unidad{qty === 1 ? '' : 'es'}</div>
@@ -184,14 +345,90 @@ function ProductSearchModalTransfers({
                       <div style={{ color: 'var(--c-text-dim)', fontSize: '0.9rem', marginTop: '0.25rem' }}>
                         ({destBefore} actuales + {qty} por transferir)
                       </div>
+                      <div style={{ fontSize: '0.85rem', marginTop: '0.4rem', color: 'var(--c-text-dim)' }}>
+                        Quedará <strong>{originAfter}</strong> en {activeInventory?.name || 'origen'}
+                      </div>
                     </div>
                   );
                 })()}
               </div>
 
+              {/* Sección de precios */}
+              <div className="lps-qty-prices-section">
+                <div className="lps-qty-section-title">Ajustar Precios</div>
+                <div className="lps-qty-prices-grid">
+                  <div className="lps-qty-price-field">
+                    <label>Costo ($)</label>
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      value={editCost} 
+                      onChange={(e) => handleEditCostChange(e.target.value)} 
+                      className="lps-qty-price-input"
+                    />
+                  </div>
+                  <div className="lps-qty-price-field">
+                    <label>Precio ($)</label>
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      value={editPrice} 
+                      onChange={(e) => handleEditPriceChange(e.target.value)} 
+                      className="lps-qty-price-input"
+                    />
+                  </div>
+                  <div className="lps-qty-price-field lps-qty-margin-field">
+                    <label>Ganancia (%)</label>
+                    <div className="lps-qty-margin-wrapper">
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        value={editMargin} 
+                        onChange={(e) => handleEditMarginChange(e.target.value)} 
+                        className="lps-qty-price-input lps-qty-margin-input"
+                      />
+                      <span className="lps-qty-margin-suffix">%</span>
+                    </div>
+                  </div>
+                </div>
+                {adjustedPriceDisplay && (
+                  <div className="lps-qty-adjusted-price">
+                    <span className="lps-qty-adjusted-label">Precio al cliente:</span>
+                    <span className="lps-qty-adjusted-value">{adjustedPriceDisplay.fullLabel}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Sección de cantidades por inventario */}
+              <div className="lps-qty-inventories-section">
+                <div className="lps-qty-section-title">Ajustar Cantidades en Inventarios</div>
+                <div className="lps-qty-inventories-grid">
+                  <div className="lps-qty-inventory-field">
+                    <label>{activeInventory?.name || 'Origen'}</label>
+                    <input 
+                      type="number" 
+                      value={originQtyOverride} 
+                      onChange={(e) => handleOriginQtyChange(e.target.value)} 
+                      className="lps-qty-inventory-input"
+                      placeholder={String(qtyDialog.max)}
+                    />
+                  </div>
+                  <div className="lps-qty-inventory-field">
+                    <label>{destInventory?.name || 'Destino'}</label>
+                    <input 
+                      type="number" 
+                      value={destQtyOverride} 
+                      onChange={(e) => setDestQtyOverride(e.target.value)} 
+                      className="lps-qty-inventory-input"
+                      placeholder={String(qtyDialog.destStock)}
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="lps-qty-actions">
                 <button type="button" className="lps-btn secondary" onClick={closeQtyDialog}>Cancelar</button>
-                <button type="button" className="lps-btn primary" onClick={confirmAddQuantity} disabled={qtyDialog.quantity < 1 || confirmingRef.current}>Añadir {qtyDialog.quantity === 1 && qtyInputValue === '' ? 1 : qtyDialog.quantity}</button>
+                <button type="button" className="lps-btn primary" onClick={confirmAddQuantity} disabled={qtyDialog.quantity < 1 || confirmingRef.current || wasAdjusted}>Añadir {qtyDialog.quantity}</button>
               </div>
             </div>
           </div>

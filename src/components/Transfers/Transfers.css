@@ -92,3 +92,40 @@
 
 /* Space specifically under the 'Total items:' line inside Transfers card footer */
 .transfers-card .cart-footer .totals-line { margin-bottom: 0.6rem; }
+
+/* Badges for showing pending updates in transfer list */
+.cart-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+}
+
+.cart-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  white-space: nowrap;
+  background: var(--c-surface-alt);
+  border: 1px solid var(--c-border-soft);
+  color: var(--c-text-dim);
+}
+
+.cart-badge.price-badge {
+  background: rgba(var(--c-accent-rgb), 0.1);
+  border-color: rgba(var(--c-accent-rgb), 0.25);
+  color: var(--c-accent);
+}
+
+.cart-badge.cost-badge {
+  background: rgba(255, 159, 64, 0.1);
+  border-color: rgba(255, 159, 64, 0.25);
+  color: rgb(255, 159, 64);
+}
+
+.cart-badge.qty-badge {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.25);
+  color: rgb(59, 130, 246);
+}

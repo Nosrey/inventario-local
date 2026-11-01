@@ -79,17 +79,39 @@ function Transfers({ user }) {
     }
   }, [inventories]);
 
+  const availableOriginQtyFor = (item) => {
+    if (item?.originStock !== undefined && item?.originStock !== null) {
+      const override = Number(item.originStock);
+      if (Number.isFinite(override)) return Math.max(0, override);
+    }
+    return Number((inventories.find(i => i.id === fromInventoryId)?.products || {})[item?.docId]?.quantity) || 0;
+  };
+
   const addItem = (product, quantity = 1) => {
     userInteractedRef.current = true;
-    // clamp to origin stock if possible
-    const originQty = Number((inventories.find(i => i.id === fromInventoryId)?.products || {})[product.docId]?.quantity) || 0;
     const desired = Number(quantity) || 1;
+    const originQty = availableOriginQtyFor(product);
     const allowed = Math.min(desired, originQty);
     if (allowed !== desired) setTransferNotice({ message: 'Cantidad ajustada al stock disponible del inventario de origen.', type: 'info' });
+
+    const { price, cost, originStock, destStock, ...baseProduct } = product;
+    const updates = {};
+    if (price !== undefined && price !== null) updates.price = price;
+    if (cost !== undefined && cost !== null) updates.cost = cost;
+    if (originStock !== undefined && originStock !== null) updates.originStock = originStock;
+    if (destStock !== undefined && destStock !== null) updates.destStock = destStock;
+
     setItems(prev => {
       const found = prev.find(p => p.docId === product.docId);
-      if (found) return prev.map(p => p.docId === product.docId ? { ...p, quantity: (Number(p.quantity) || 0) + allowed } : p);
-      return [...prev, { ...product, quantity: allowed }];
+      if (found) {
+        return prev.map(p => {
+          if (p.docId !== product.docId) return p;
+          const merged = { ...p, ...updates };
+          const nextQty = Math.min((Number(p.quantity) || 0) + allowed, availableOriginQtyFor(merged));
+          return { ...merged, quantity: nextQty };
+        });
+      }
+      return [...prev, { ...baseProduct, quantity: allowed, ...updates }];
     });
   };
 
@@ -132,7 +154,7 @@ function Transfers({ user }) {
   const removeItem = (docId) => setItems(prev => prev.filter(p => p.docId !== docId));
   const incrementQty = (docId) => setItems(prev => prev.map(p => {
     if (p.docId !== docId) return p;
-    const originQty = Number((inventories.find(i => i.id === fromInventoryId)?.products || {})[p.docId]?.quantity) || 0;
+    const originQty = availableOriginQtyFor(p);
     const cur = Number(p.quantity) || 0;
     const next = Math.min(cur + 1, originQty);
     if (next === cur) return p;
@@ -192,6 +214,10 @@ function Transfers({ user }) {
   const destInventory = inventories.find(i => i.id === toInventoryId) || null;
   const destInventoryProductMap = destInventory?.products || {};
 
+  // Origin inventory product map for showing resulting totals
+  const originInventory = inventories.find(i => i.id === fromInventoryId) || null;
+  const originInventoryProductMap = originInventory?.products || {};
+
   // Reconcile existing item quantities when the origin inventory changes.
   // This ensures quantities never exceed the available stock in the selected
   // origin without requiring manual edit. Note: we only reconcile when the
@@ -203,7 +229,9 @@ function Transfers({ user }) {
     setItems(prev => {
       let changed = false;
       const next = prev.map(it => {
-        const originQty = Number(originMap?.[it.docId]?.quantity) || 0;
+        const originQty = (it.originStock !== undefined && it.originStock !== null)
+          ? Number(it.originStock) || 0
+          : Number(originMap?.[it.docId]?.quantity) || 0;
         const cur = Number(it.quantity) || 0;
         const clamped = Math.min(cur, originQty);
         if (clamped !== cur) { changed = true; return { ...it, quantity: clamped }; }
@@ -244,7 +272,7 @@ function Transfers({ user }) {
     let adjustedItems = [...items];
     let hadAdjustments = false;
     for (const it of adjustedItems) {
-      const avail = Number(originInv.products?.[it.docId]?.quantity) || 0;
+      const avail = availableOriginQtyFor(it);
       const requested = Number(it.quantity) || 0;
       if (requested > avail) {
         it.quantity = avail;
@@ -306,14 +334,43 @@ function Transfers({ user }) {
       const safeOrigin = clean(originFields);
       const safeDest = clean(destFields);
 
+      // Collect product price/cost updates and inventory quantity overrides
+      const productUpdates = {};
+      const inventoryQtyOverrides = { origin: {}, dest: {} };
+      
+      for (const it of items) {
+        const key = it?.docId || it?.id;
+        if (!key) continue;
+        
+        // Product price/cost updates
+        const prodUpdate = {};
+        if (it.price !== undefined && it.price !== null) prodUpdate.price = it.price;
+        if (it.cost !== undefined && it.cost !== null) prodUpdate.cost = it.cost;
+        if (Object.keys(prodUpdate).length > 0) {
+          productUpdates[key] = prodUpdate;
+        }
+        
+        // Inventory quantity overrides (manual adjustments)
+        if (it.originStock !== undefined && it.originStock !== null) {
+          inventoryQtyOverrides.origin[key] = it.originStock;
+        }
+        if (it.destStock !== undefined && it.destStock !== null) {
+          inventoryQtyOverrides.dest[key] = it.destStock;
+        }
+      }
+
       // prepare history items snapshot before we clear UI state
       const originMap = (inventories.find(i => i.id === fromInventoryId)?.products) || {};
       const destMap = (inventories.find(i => i.id === toInventoryId)?.products) || {};
       const historyItems = Object.entries(sums).map(([key, qty]) => {
         const found = items.find(it => ((it.docId || it.id) == key));
         const name = found?.name || key;
-        const originBefore = Number(originMap?.[key]?.quantity) || 0;
-        const destBefore = Number(destMap?.[key]?.quantity) || 0;
+        const originBefore = (found?.originStock !== undefined && found?.originStock !== null)
+          ? Number(found.originStock)
+          : Number(originMap?.[key]?.quantity) || 0;
+        const destBefore = (found?.destStock !== undefined && found?.destStock !== null)
+          ? Number(found.destStock)
+          : Number(destMap?.[key]?.quantity) || 0;
         return {
           productDocId: key,
           productId: found?.id ?? null,
@@ -347,8 +404,24 @@ function Transfers({ user }) {
           return; // already applied
         }
 
+        // First apply inventory quantity overrides (manual adjustments)
+        // These represent the INITIAL stock values BEFORE the transfer
+        for (const [key, initialQty] of Object.entries(inventoryQtyOverrides.origin)) {
+          tx.update(originRef, { [`products.${key}.quantity`]: initialQty });
+        }
+        for (const [key, initialQty] of Object.entries(inventoryQtyOverrides.dest)) {
+          tx.update(destRef, { [`products.${key}.quantity`]: initialQty });
+        }
+
+        // Then apply normal transfer increments/decrements
         if (Object.keys(safeOrigin).length) tx.update(originRef, { ...safeOrigin, updatedAt: serverTimestamp() });
         if (Object.keys(safeDest).length) tx.update(destRef, { ...safeDest, updatedAt: serverTimestamp() });
+
+        // Apply product price/cost updates
+        for (const [key, updates] of Object.entries(productUpdates)) {
+          const prodRef = doc(db, 'products', key);
+          tx.update(prodRef, { ...updates, updatedAt: serverTimestamp() });
+        }
 
         tx.set(transferRef, {
           id: stableTransferId,
@@ -466,9 +539,20 @@ function Transfers({ user }) {
                 <div className="cart-empty">No hay productos añadidos. Usa el botón + para buscar productos.</div>
               ) : (
                 items.map(item => {
-                  const destBefore = Number(destInventoryProductMap?.[item.docId]?.quantity) || 0;
+                  // Use override values if provided, otherwise use current inventory values
+                  const destBefore = item.destStock !== undefined && item.destStock !== null 
+                    ? Number(item.destStock) 
+                    : Number(destInventoryProductMap?.[item.docId]?.quantity) || 0;
+                  const originBefore = item.originStock !== undefined && item.originStock !== null
+                    ? Number(item.originStock)
+                    : Number(originInventoryProductMap?.[item.docId]?.quantity) || 0;
                   const qty = Number(item.quantity) || 0;
                   const destAfter = destBefore + qty;
+                  const originAfter = Math.max(0, originBefore - qty);
+                  const hasPriceUpdate = item.price !== undefined && item.price !== null;
+                  const hasCostUpdate = item.cost !== undefined && item.cost !== null;
+                  const hasOriginQtyUpdate = item.originStock !== undefined && item.originStock !== null;
+                  const hasDestQtyUpdate = item.destStock !== undefined && item.destStock !== null;
                   return (
                   <div className="cart-row" key={item.docId}>
                     <div className="cart-cell">
@@ -486,14 +570,31 @@ function Transfers({ user }) {
                           <img className="cart-thumb" src={item.thumbnailWebp || item.thumbnail || item.image} alt={item.name || 'Imagen'} />
                         </button>
                       )}
-                      <div className="cart-name">{item.name}</div>
+                      <div className="cart-name">
+                        {item.name}
+                        {(hasPriceUpdate || hasCostUpdate || hasOriginQtyUpdate || hasDestQtyUpdate) && (
+                          <div className="cart-badges">
+                            {hasPriceUpdate && <span className="cart-badge price-badge">Precio: ${item.price}</span>}
+                            {hasCostUpdate && <span className="cart-badge cost-badge">Costo: ${item.cost}</span>}
+                            {hasOriginQtyUpdate && <span className="cart-badge qty-badge">Origen: {item.originStock}</span>}
+                            {hasDestQtyUpdate && <span className="cart-badge qty-badge">Destino: {item.destStock}</span>}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="cart-cell price"><div style={{ fontSize: '0.95rem', color: 'var(--c-text-dim)' }}>Antes: <strong style={{ color: 'var(--c-text)' }}>{destBefore}</strong></div></div>
+                    <div className="cart-cell price">
+                      <div style={{ fontSize: '0.95rem', color: 'var(--c-text-dim)' }}>Antes: <strong style={{ color: 'var(--c-text)' }}>{destBefore}</strong></div>
+                      {hasOriginQtyUpdate && (
+                        <div style={{ fontSize: '0.85rem', color: 'var(--c-text-dim)', marginTop: '0.2rem' }}>
+                          Origen: {originBefore} → {originAfter}
+                        </div>
+                      )}
+                    </div>
                     <div className="cart-cell quantity">
                       <div className="qty-control">
                         <QtyButton variant="minus" onClick={() => { decrement(item.docId); }} ariaLabel={`Restar 1 a ${item.name}`} disabled={item.quantity <= 1} />
                         <div className="qty-number">{item.quantity}</div>
-                        <QtyButton variant="plus" onClick={() => { incrementQty(item.docId); }} ariaLabel={`Sumar 1 a ${item.name}`} />
+                        <QtyButton variant="plus" onClick={() => { incrementQty(item.docId); }} ariaLabel={`Sumar 1 a ${item.name}`} disabled={qty >= originBefore} />
                       </div>
                     </div>
                     <div className="cart-cell subtotal"><span style={{ fontWeight: 600 }}>Total: {destAfter}</span></div>
